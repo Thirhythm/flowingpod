@@ -1,14 +1,15 @@
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/play_mode.dart';
-import 'package:bilihear/core/models/player_state.dart';
-import 'package:bilihear/features/search/search_page.dart';
-import 'package:bilihear/features/shell/app_shell.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/play_mode.dart';
+import 'package:flowingpod/core/models/player_state.dart';
+import 'package:flowingpod/core/models/track_source.dart';
+import 'package:flowingpod/features/search/search_page.dart';
+import 'package:flowingpod/features/shell/app_shell.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/state/providers.dart';
 // Material also exports a `SearchController`, hence the prefix.
-import 'package:bilihear/state/search_controller.dart' as search;
-import 'package:bilihear/widgets/mini_player.dart';
+import 'package:flowingpod/state/search_controller.dart' as search;
+import 'package:flowingpod/widgets/mini_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,15 +46,22 @@ class _FakePlayer extends PlayerController {
 /// A finished search that failed: renders the message together with the retry
 /// action, which is the tallest state of the page.
 class _FailedSearch extends search.SearchController {
+  _FailedSearch(super.source);
+
   @override
-  search.SearchState build() =>
-      const search.SearchState(keyword: 'taylor', error: '网络连接失败，请检查网络设置');
+  search.SearchState build() => search.SearchState(
+    source: source,
+    keyword: 'taylor',
+    error: '网络连接失败，请检查网络设置',
+  );
 }
 
 Widget _host() => ProviderScope(
   overrides: [
     authControllerProvider.overrideWith(_SignedOutAuth.new),
-    search.searchControllerProvider.overrideWith(_FailedSearch.new),
+    search
+        .searchControllerProvider(TrackSource.bilibili)
+        .overrideWith(() => _FailedSearch(TrackSource.bilibili)),
   ],
   // Mirrors AppShell: a Scaffold holding the mini player and the page Scaffold.
   child: MaterialApp(

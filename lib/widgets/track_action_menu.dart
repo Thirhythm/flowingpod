@@ -1,11 +1,13 @@
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/state/library_controllers.dart';
-import 'package:bilihear/state/local_favorites_controller.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/state/providers.dart';
-import 'package:bilihear/widgets/favorite_sheet.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/models/local_playlist.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/state/library_controllers.dart';
+import 'package:flowingpod/state/local_playlists_controller.dart';
+import 'package:flowingpod/state/netease_auth_controller.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/state/providers.dart';
+import 'package:flowingpod/widgets/favorite_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,7 +54,7 @@ Future<void> showTrackActions(
           .read(playerStateProvider.notifier)
           .addToNext(track);
       if (!context.mounted) return;
-      _toast(context, queued ? '已添加到下一首播放' : '该视频正在播放');
+      _toast(context, queued ? '已添加到下一首播放' : '该歌曲正在播放');
     case TrackAction.favorite:
       await _addFavorite(context, ref, track);
     case TrackAction.unfavorite:
@@ -62,48 +64,56 @@ Future<void> showTrackActions(
   }
 }
 
-/// Stores [track] in the collection matching the session, signed in or not.
+/// Stores [track] in 我喜欢的音乐 and opens the playlist picker.
 Future<void> _addFavorite(
   BuildContext context,
   WidgetRef ref,
   MediaTrack track,
 ) async {
-  if (ref.read(authControllerProvider).isLoggedIn) {
-    // Which folder should hold it is the user's choice.
-    await FavoriteSheet.show(context, track: track);
-    return;
-  }
-  await ref.read(localFavoritesProvider.notifier).add(track);
-  if (context.mounted) _toast(context, '已添加到本地收藏夹');
+  if (!track.canFavorite) return;
+  await FavoriteSheet.show(context, ref, track: track);
 }
 
-/// Drops [track] from the collection matching the session, signed in or not.
+/// Drops [track] from 我喜欢的音乐 and, when signed in, from the source
+/// service's favourite collection.
 Future<void> _removeFavorite(
   BuildContext context,
   WidgetRef ref,
   MediaTrack track,
 ) async {
-  if (!ref.read(authControllerProvider).isLoggedIn) {
-    await ref.read(localFavoritesProvider.notifier).remove(track);
-    if (context.mounted) _toast(context, '已取消收藏');
-    return;
+  await ref.read(localPlaylistsProvider.notifier).removeTracks(
+    LocalPlaylist.likedId,
+    [track],
+  );
+
+  if (track.isNetease) {
+    if (ref.read(neteaseAuthProvider).isLoggedIn && track.songId > 0) {
+      try {
+        await ref
+            .read(neteaseRepositoryProvider)
+            .likeSong(track.songId, like: false);
+      } on BiliApiException {
+        // The local removal above is what the indicator reflects.
+      }
+    }
+  } else if (ref.read(authControllerProvider).isLoggedIn) {
+    try {
+      // One video can sit in several folders, so 取消收藏 empties them all.
+      final folders = await ref.read(favFoldersProvider.future);
+      if (folders.isNotEmpty) {
+        await ref
+            .read(favRepositoryProvider)
+            .dealResources(
+              aid: track.aid,
+              removeFrom: [for (final folder in folders) folder.id],
+            );
+        ref.invalidate(favFoldersProvider);
+      }
+    } on BiliApiException {
+      // Best-effort: the local favourite was already removed.
+    }
   }
-  try {
-    // One video can sit in several folders, so 取消收藏 empties them all.
-    final folders = await ref.read(favFoldersProvider.future);
-    if (folders.isEmpty) return;
-    await ref
-        .read(favRepositoryProvider)
-        .dealResources(
-          aid: track.aid,
-          removeFrom: [for (final folder in folders) folder.id],
-        );
-    ref.invalidate(favFoldersProvider);
-    ref.invalidate(favStatusProvider(track.aid));
-    if (context.mounted) _toast(context, '已取消收藏');
-  } on BiliApiException catch (error) {
-    if (context.mounted) _toast(context, error.message);
-  }
+  if (context.mounted) _toast(context, '已取消收藏');
 }
 
 void _toast(BuildContext context, String message) =>

@@ -1,4 +1,4 @@
-import 'package:bilihear/core/api/wbi_signer.dart';
+import 'package:flowingpod/core/api/wbi_signer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

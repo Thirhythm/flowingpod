@@ -1,5 +1,5 @@
-import 'package:bilihear/core/models/recent_folder.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/models/recent_folder.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// On-device record of the favourite folders played from, feeding the home

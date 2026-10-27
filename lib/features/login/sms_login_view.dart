@@ -1,6 +1,6 @@
-import 'package:bilihear/data/repositories/auth_repository.dart';
-import 'package:bilihear/features/login/geetest_view.dart';
-import 'package:bilihear/state/auth_controller.dart';
+import 'package:flowingpod/data/repositories/auth_repository.dart';
+import 'package:flowingpod/features/login/geetest_view.dart';
+import 'package:flowingpod/state/auth_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

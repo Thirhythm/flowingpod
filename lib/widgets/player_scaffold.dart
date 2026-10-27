@@ -1,4 +1,4 @@
-import 'package:bilihear/widgets/mini_player.dart';
+import 'package:flowingpod/widgets/mini_player.dart';
 import 'package:flutter/material.dart';
 
 /// Page scaffold that keeps the global mini player docked at the bottom, the

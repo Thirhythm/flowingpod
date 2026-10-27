@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
-        android:label="哔哩听见"
+        android:label="FlowingPod"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
         android:networkSecurityConfig="@xml/network_security_config">

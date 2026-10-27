@@ -1,9 +1,9 @@
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/api/bili_client.dart';
-import 'package:bilihear/core/api/bili_endpoints.dart';
-import 'package:bilihear/core/models/history_entry.dart';
-import 'package:bilihear/core/models/json_utils.dart';
-import 'package:bilihear/core/models/media_track.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/api/bili_client.dart';
+import 'package:flowingpod/core/api/bili_endpoints.dart';
+import 'package:flowingpod/core/models/history_entry.dart';
+import 'package:flowingpod/core/models/json_utils.dart';
+import 'package:flowingpod/core/models/media_track.dart';
 
 /// Infinite-scroll cursor for the history list.
 class HistoryCursor {

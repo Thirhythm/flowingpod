@@ -1,4 +1,4 @@
-import 'package:bilihear/core/models/equalizer_capabilities.dart';
+import 'package:flowingpod/core/models/equalizer_capabilities.dart';
 
 /// Sound effects offered by the playback engine.
 ///

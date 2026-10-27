@@ -1,5 +1,5 @@
-import 'package:bilihear/core/models/play_mode.dart';
-import 'package:bilihear/state/player_controller.dart';
+import 'package:flowingpod/core/models/play_mode.dart';
+import 'package:flowingpod/state/player_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

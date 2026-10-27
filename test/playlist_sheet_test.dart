@@ -1,8 +1,8 @@
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/play_mode.dart';
-import 'package:bilihear/core/models/player_state.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/widgets/playlist_sheet.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/play_mode.dart';
+import 'package:flowingpod/core/models/player_state.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/widgets/playlist_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

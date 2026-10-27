@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:bilihear/core/models/audio_effect_settings.dart';
-import 'package:bilihear/core/models/equalizer_capabilities.dart';
-import 'package:bilihear/core/models/equalizer_preset.dart';
-import 'package:bilihear/data/services/audio_effects.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/models/audio_effect_settings.dart';
+import 'package:flowingpod/core/models/equalizer_capabilities.dart';
+import 'package:flowingpod/core/models/equalizer_preset.dart';
+import 'package:flowingpod/data/services/audio_effects.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Stored sound-effect preferences plus what the engine currently offers.

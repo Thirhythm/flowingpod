@@ -1,5 +1,5 @@
-import 'package:bilihear/core/models/recent_folder.dart';
-import 'package:bilihear/data/repositories/local_recent_folders_repository.dart';
+import 'package:flowingpod/core/models/recent_folder.dart';
+import 'package:flowingpod/data/repositories/local_recent_folders_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

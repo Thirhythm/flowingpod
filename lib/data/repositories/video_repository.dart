@@ -1,9 +1,9 @@
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/api/bili_client.dart';
-import 'package:bilihear/core/api/bili_endpoints.dart';
-import 'package:bilihear/core/models/audio_stream.dart';
-import 'package:bilihear/core/models/json_utils.dart';
-import 'package:bilihear/core/models/video_detail.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/api/bili_client.dart';
+import 'package:flowingpod/core/api/bili_endpoints.dart';
+import 'package:flowingpod/core/models/audio_stream.dart';
+import 'package:flowingpod/core/models/json_utils.dart';
+import 'package:flowingpod/core/models/video_detail.dart';
 
 /// Reads video metadata and resolves audio-only play URLs.
 class VideoRepository {

@@ -4,16 +4,17 @@ import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/api/bili_client.dart';
-import 'package:bilihear/core/models/equalizer_capabilities.dart';
-import 'package:bilihear/core/models/equalizer_preset.dart';
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/play_mode.dart';
-import 'package:bilihear/core/models/player_state.dart';
-import 'package:bilihear/core/utils/image_url.dart';
-import 'package:bilihear/data/repositories/video_repository.dart';
-import 'package:bilihear/data/services/audio_effects.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/api/bili_client.dart';
+import 'package:flowingpod/core/models/equalizer_capabilities.dart';
+import 'package:flowingpod/core/models/equalizer_preset.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/play_mode.dart';
+import 'package:flowingpod/core/models/player_state.dart';
+import 'package:flowingpod/core/utils/image_url.dart';
+import 'package:flowingpod/data/repositories/netease_repository.dart';
+import 'package:flowingpod/data/repositories/video_repository.dart';
+import 'package:flowingpod/data/services/audio_effects.dart';
 // just_audio also exports a `PlayerState`, which collides with our model.
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,8 +34,10 @@ class BiliAudioService extends BaseAudioHandler
     implements AudioEffects {
   BiliAudioService({
     required VideoRepository videoRepository,
+    required NeteaseRepository neteaseRepository,
     required SharedPreferences preferences,
   }) : _videos = videoRepository,
+       _netease = neteaseRepository,
        _prefs = preferences {
     unawaited(_configureSession());
     _restore();
@@ -58,6 +61,11 @@ class BiliAudioService extends BaseAudioHandler
   static const Map<String, String> _streamHeaders = {
     'User-Agent': BiliClient.userAgent,
     'Referer': 'https://www.bilibili.com/',
+  };
+
+  static const Map<String, String> _neteaseStreamHeaders = {
+    'User-Agent': BiliClient.userAgent,
+    'Referer': 'https://music.163.com/',
   };
 
   /// Re-resolving a single track is allowed once after a playback error.
@@ -132,6 +140,7 @@ class BiliAudioService extends BaseAudioHandler
   bool _trackLoaded = false;
 
   final VideoRepository _videos;
+  final NeteaseRepository _netease;
   final SharedPreferences _prefs;
   final Random _random = Random();
 
@@ -234,6 +243,38 @@ class BiliAudioService extends BaseAudioHandler
     final plan = planPlayNext(_queue, _currentIndex, track);
     if (plan == null) return false;
 
+    _applyPlayNextPlan(plan);
+    _broadcastQueue();
+    _persist();
+    _emit();
+    return true;
+  }
+
+  /// Inserts [track] directly after the current entry (moving it there when the
+  /// queue already holds it) and starts playing it.
+  ///
+  /// Entries without a resolved id, such as search results, are expanded into
+  /// the video's parts by [_loadCurrent], exactly like when they start an empty
+  /// queue. Requesting the entry that is playing right now resumes it instead.
+  Future<void> playNext(MediaTrack track) async {
+    if (_queue.isEmpty || _currentIndex < 0) {
+      unawaited(setQueue([track]));
+      return;
+    }
+    final plan = planPlayNext(_queue, _currentIndex, track);
+    if (plan == null) {
+      unawaited(_resume());
+      return;
+    }
+
+    _applyPlayNextPlan(plan);
+    _broadcastQueue();
+    await _persist();
+    unawaited(_playAt(plan.currentIndex + 1));
+  }
+
+  /// Applies [plan] and keeps the shuffle order aligned with it.
+  void _applyPlayNextPlan(PlayNextPlan plan) {
     _queue = plan.queue;
     _currentIndex = plan.currentIndex;
     _rebuildShuffleOrder(lead: _currentIndex);
@@ -245,10 +286,6 @@ class BiliAudioService extends BaseAudioHandler
         ..remove(queued)
         ..insert(_shuffleOrder.indexOf(_currentIndex) + 1, queued);
     }
-    _broadcastQueue();
-    _persist();
-    _emit();
-    return true;
   }
 
   /// Skips to the next track according to the current [PlayMode].
@@ -564,25 +601,43 @@ class BiliAudioService extends BaseAudioHandler
         _broadcastQueue();
       }
       final resolved = _queue[_currentIndex];
-      final source = await _videos.fetchPlaybackSource(
-        bvid: resolved.bvid,
-        cid: resolved.cid,
-      );
-      final best = source.best;
-      if (best == null) {
-        throw const BiliApiException(code: -1, message: '该视频没有可用的音频流');
-      }
-      final uri = Uri.tryParse(best.url);
-      if (uri == null) {
-        throw const BiliApiException(code: -1, message: '音频地址无效');
-      }
 
-      await _player.setAudioSource(
-        AudioSource.uri(uri, headers: _streamHeaders),
-      );
+      if (resolved.isNetease) {
+        final url = await _netease.fetchSongUrl(resolved.songId);
+        if (url == null || url.isEmpty) {
+          throw const BiliApiException(
+            code: -1,
+            message: '该歌曲暂时无法播放，可能需要网易云会员',
+          );
+        }
+        final uri = Uri.tryParse(url);
+        if (uri == null) {
+          throw const BiliApiException(code: -1, message: '音频地址无效');
+        }
+        await _player.setAudioSource(
+          AudioSource.uri(uri, headers: _neteaseStreamHeaders),
+        );
+        _duration = resolved.duration;
+      } else {
+        final source = await _videos.fetchPlaybackSource(
+          bvid: resolved.bvid,
+          cid: resolved.cid,
+        );
+        final best = source.best;
+        if (best == null) {
+          throw const BiliApiException(code: -1, message: '该视频没有可用的音频流');
+        }
+        final uri = Uri.tryParse(best.url);
+        if (uri == null) {
+          throw const BiliApiException(code: -1, message: '音频地址无效');
+        }
+        await _player.setAudioSource(
+          AudioSource.uri(uri, headers: _streamHeaders),
+        );
+        _duration = source.duration ?? resolved.duration;
+      }
       _trackLoaded = true;
 
-      _duration = source.duration ?? resolved.duration;
       if (_duration <= Duration.zero) {
         _duration = _player.duration ?? Duration.zero;
       }
@@ -610,6 +665,12 @@ class BiliAudioService extends BaseAudioHandler
   Future<int> _resolveIndexIfNeeded(int index) async {
     if (index < 0 || index >= _queue.length) return index;
     final track = _queue[index];
+    if (track.isNetease) {
+      if (track.songId <= 0) {
+        throw const BiliApiException(code: -400, message: '无效的网易云歌曲');
+      }
+      return index;
+    }
     if (track.cid > 0) return index;
 
     final detail = await _videos.fetchDetail(bvid: track.bvid);
@@ -619,8 +680,15 @@ class BiliAudioService extends BaseAudioHandler
     }
     _queue.removeAt(index);
     _queue.insertAll(index, parts);
-    _rebuildShuffleOrder(lead: index);
-    return index;
+    // The placeholder names the part it stands for, which is not always the
+    // first one.
+    final selected = parts.indexWhere((part) => part.page == track.page);
+    final resolved = selected < 0 ? index : index + selected;
+    _rebuildShuffleOrder(lead: resolved);
+    // The placeholder is gone and the parts replaced it, so the notification
+    // queue has to follow even though the current index did not move.
+    _broadcastQueue();
+    return resolved;
   }
 
   Future<void> _playAt(int index) async {
@@ -782,7 +850,12 @@ class BiliAudioService extends BaseAudioHandler
     album: track.partTitle ?? '',
     duration: duration > Duration.zero ? duration : null,
     artUri: _artUri(track.cover),
-    extras: {'bvid': track.bvid, 'cid': track.cid},
+    extras: {
+      'source': track.source.name,
+      'bvid': track.bvid,
+      'cid': track.cid,
+      'songId': track.songId,
+    },
   );
 
   Uri? _artUri(String cover) {

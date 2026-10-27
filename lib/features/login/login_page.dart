@@ -1,7 +1,7 @@
-import 'package:bilihear/features/login/geetest_view.dart';
-import 'package:bilihear/features/login/qr_login_view.dart';
-import 'package:bilihear/features/login/sms_login_view.dart';
-import 'package:bilihear/state/auth_controller.dart';
+import 'package:flowingpod/features/login/geetest_view.dart';
+import 'package:flowingpod/features/login/qr_login_view.dart';
+import 'package:flowingpod/features/login/sms_login_view.dart';
+import 'package:flowingpod/state/auth_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

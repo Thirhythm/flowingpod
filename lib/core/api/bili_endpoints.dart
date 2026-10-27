@@ -9,9 +9,6 @@ abstract final class BiliEndpoints {
   /// Passport host used for web login (`passport.bilibili.com`).
   static const String passportBase = 'https://passport.bilibili.com';
 
-  /// Host serving search suggestions (`s.search.bilibili.com`).
-  static const String suggestBase = 'https://s.search.bilibili.com';
-
   // --- Account / authentication -------------------------------------------
   static const String nav = '/x/web-interface/nav';
   static const String navStat = '/x/web-interface/nav/stat';
@@ -29,7 +26,6 @@ abstract final class BiliEndpoints {
 
   // --- Search -------------------------------------------------------------
   static const String searchType = '/x/web-interface/wbi/search/type';
-  static const String searchSuggest = '/main/suggest';
 
   // --- Video --------------------------------------------------------------
   static const String videoView = '/x/web-interface/view';
@@ -37,10 +33,12 @@ abstract final class BiliEndpoints {
 
   // --- Favourites ---------------------------------------------------------
   static const String favFolderCreated = '/x/v3/fav/folder/created/list-all';
+  static const String favFolderAdd = '/x/v3/fav/folder/add';
+  static const String favFolderEdit = '/x/v3/fav/folder/edit';
+  static const String favFolderDel = '/x/v3/fav/folder/del';
   static const String favResourceList = '/x/v3/fav/resource/list';
   static const String favResourceDeal = '/x/v3/fav/resource/deal';
   static const String favResourceBatchDel = '/x/v3/fav/resource/batch-del';
-  static const String favFavoured = '/x/v2/fav/video/favoured';
 
   // --- History ------------------------------------------------------------
   static const String historyCursor = '/x/web-interface/history/cursor';

@@ -1,14 +1,14 @@
-import 'package:bilihear/core/models/fav_folder.dart';
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/paged_result.dart';
-import 'package:bilihear/core/models/play_mode.dart';
-import 'package:bilihear/core/models/player_state.dart';
-import 'package:bilihear/features/library/folder_detail_page.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/state/library_controllers.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/state/providers.dart';
-import 'package:bilihear/widgets/player_scaffold.dart';
+import 'package:flowingpod/core/models/fav_folder.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/paged_result.dart';
+import 'package:flowingpod/core/models/play_mode.dart';
+import 'package:flowingpod/core/models/player_state.dart';
+import 'package:flowingpod/features/library/playlist_detail_page.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/state/library_controllers.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/state/providers.dart';
+import 'package:flowingpod/widgets/player_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -118,11 +118,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('收藏夹里的歌曲'), findsOneWidget);
-    expect(
-      find.text('正在播放的歌曲'),
-      findsOneWidget,
-      reason: '进入特定收藏夹后应显示播放控制栏',
-    );
+    expect(find.text('正在播放的歌曲'), findsOneWidget, reason: '进入特定收藏夹后应显示播放控制栏');
 
     // The bar must not cover the list.
     final row = tester.getRect(find.text('收藏夹里的歌曲'));

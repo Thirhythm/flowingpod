@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Android 9+ blocks cleartext HTTP by default, which breaks media playback:
-  Bilibili's playurl responses may hand out plain `http://upos-*.bilivideo.com`
-  stream URLs, and a local playback proxy can serve loopback URLs. API and login
-  traffic stays HTTPS-only, so only media hosts and loopback are exempted.
+  Android 9+ blocks cleartext HTTP by default. Playback needs it because the
+  play APIs may hand out plain `http://` media URLs for Bilibili and NetEase,
+  even though the API calls themselves use HTTPS.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
@@ -12,5 +11,6 @@
         <domain includeSubdomains="false">localhost</domain>
         <domain includeSubdomains="true">bilivideo.com</domain>
         <domain includeSubdomains="true">bilivideo.cn</domain>
+        <domain includeSubdomains="true">126.net</domain>
     </domain-config>
 </network-security-config>

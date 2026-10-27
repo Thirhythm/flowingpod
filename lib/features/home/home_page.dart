@@ -1,14 +1,14 @@
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/recent_folder.dart';
-import 'package:bilihear/features/library/folder_detail_page.dart';
-import 'package:bilihear/features/player/player_navigation.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/state/local_history_controller.dart';
-import 'package:bilihear/state/local_recent_folders_controller.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/widgets/cover_image.dart';
-import 'package:bilihear/widgets/track_action_menu.dart';
-import 'package:bilihear/widgets/track_tile.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/recent_folder.dart';
+import 'package:flowingpod/features/library/playlist_detail_page.dart';
+import 'package:flowingpod/features/player/player_navigation.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/state/local_history_controller.dart';
+import 'package:flowingpod/state/local_recent_folders_controller.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/widgets/cover_image.dart';
+import 'package:flowingpod/widgets/track_action_menu.dart';
+import 'package:flowingpod/widgets/track_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -157,9 +157,7 @@ class _RecentPlays extends ConsumerWidget {
           TrackTile(
             track: track,
             onTap: () async {
-              await ref
-                  .read(playerStateProvider.notifier)
-                  .playVideo(track.bvid, page: track.page);
+              await ref.read(playerStateProvider.notifier).playTrack(track);
               if (!context.mounted) return;
               await openPlayerIfEnabled(context, ref);
             },

@@ -1,6 +1,7 @@
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/utils/formatters.dart';
-import 'package:bilihear/widgets/cover_image.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/utils/formatters.dart';
+import 'package:flowingpod/widgets/cover_image.dart';
+import 'package:flowingpod/widgets/track_source_badge.dart';
 import 'package:flutter/material.dart';
 
 /// Row used by every list that shows playable content.
@@ -14,6 +15,7 @@ class TrackTile extends StatelessWidget {
     this.subtitle,
     this.highlight = false,
     this.showCover = true,
+    this.showSource = true,
     this.leading,
     this.maxLines = 2,
   });
@@ -25,6 +27,10 @@ class TrackTile extends StatelessWidget {
   final String? subtitle;
   final bool highlight;
   final bool showCover;
+
+  /// Whether the row names the service the track comes from. Lists that are
+  /// already scoped to one service (search tabs, cloud playlists) turn it off.
+  final bool showSource;
   final Widget? leading;
   final int maxLines;
 
@@ -37,7 +43,8 @@ class TrackTile extends StatelessWidget {
       selected: highlight,
       selectedTileColor: scheme.primaryContainer.withValues(alpha: 0.35),
       leading:
-          leading ?? (showCover ? CoverImage(url: track.cover, size: 52) : null),
+          leading ??
+          (showCover ? CoverImage(url: track.cover, size: 52) : null),
       title: Text(
         track.displayTitle,
         maxLines: maxLines,
@@ -47,10 +54,20 @@ class TrackTile extends StatelessWidget {
           color: highlight ? scheme.primary : null,
         ),
       ),
-      subtitle: Text(
-        subtitle ?? _defaultSubtitle(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      subtitle: Row(
+        children: [
+          if (showSource) ...[
+            TrackSourceBadge(source: track.source),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              subtitle ?? _defaultSubtitle(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
       trailing: trailing,
     );

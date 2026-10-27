@@ -22,7 +22,7 @@ class AboutPage extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 24),
         children: [
           const ListTile(
-            title: Text('哔哩听见'),
+            title: Text('FlowingPod'),
             subtitle: Text('版本 $appVersion'),
           ),
           const Divider(height: 1),

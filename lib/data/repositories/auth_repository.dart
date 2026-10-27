@@ -1,8 +1,8 @@
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/api/bili_client.dart';
-import 'package:bilihear/core/api/bili_endpoints.dart';
-import 'package:bilihear/core/models/bili_user.dart';
-import 'package:bilihear/core/models/json_utils.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/api/bili_client.dart';
+import 'package:flowingpod/core/api/bili_endpoints.dart';
+import 'package:flowingpod/core/models/bili_user.dart';
+import 'package:flowingpod/core/models/json_utils.dart';
 
 /// A generated login QR code.
 class QrSession {

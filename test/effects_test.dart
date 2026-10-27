@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:bilihear/core/models/audio_effect_settings.dart';
-import 'package:bilihear/core/models/equalizer_capabilities.dart';
-import 'package:bilihear/core/models/equalizer_preset.dart';
-import 'package:bilihear/core/utils/formatters.dart';
-import 'package:bilihear/data/repositories/settings_repository.dart';
-import 'package:bilihear/data/services/audio_effects.dart';
-import 'package:bilihear/features/settings/effects_page.dart';
-import 'package:bilihear/state/effects_controller.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/models/audio_effect_settings.dart';
+import 'package:flowingpod/core/models/equalizer_capabilities.dart';
+import 'package:flowingpod/core/models/equalizer_preset.dart';
+import 'package:flowingpod/core/utils/formatters.dart';
+import 'package:flowingpod/data/repositories/settings_repository.dart';
+import 'package:flowingpod/data/services/audio_effects.dart';
+import 'package:flowingpod/features/settings/effects_page.dart';
+import 'package:flowingpod/state/effects_controller.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

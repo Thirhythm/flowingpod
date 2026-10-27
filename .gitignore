@@ -48,3 +48,6 @@ app.*.map.json
 .widget_preview/
 
 /android/key.properties
+
+docs/
+netease-cloudmusic-nodejs-api/

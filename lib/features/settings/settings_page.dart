@@ -1,7 +1,7 @@
-import 'package:bilihear/core/models/app_theme_mode.dart';
-import 'package:bilihear/features/settings/about_page.dart';
-import 'package:bilihear/features/settings/effects_page.dart';
-import 'package:bilihear/state/settings_controller.dart';
+import 'package:flowingpod/core/models/app_theme_mode.dart';
+import 'package:flowingpod/features/settings/about_page.dart';
+import 'package:flowingpod/features/settings/effects_page.dart';
+import 'package:flowingpod/state/settings_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

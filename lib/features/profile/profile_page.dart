@@ -1,5 +1,6 @@
-import 'package:bilihear/features/settings/settings_page.dart';
-import 'package:bilihear/widgets/account_card.dart';
+import 'package:flowingpod/features/settings/settings_page.dart';
+import 'package:flowingpod/widgets/account_card.dart';
+import 'package:flowingpod/widgets/netease_account_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,6 +16,7 @@ class ProfilePage extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: 24),
         children: [
           const AccountCard(),
+          const NeteaseAccountCard(),
           ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: const Text('设置'),

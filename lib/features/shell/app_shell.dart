@@ -1,8 +1,8 @@
-import 'package:bilihear/features/home/home_page.dart';
-import 'package:bilihear/features/library/library_page.dart';
-import 'package:bilihear/features/profile/profile_page.dart';
-import 'package:bilihear/features/search/search_page.dart';
-import 'package:bilihear/widgets/mini_player.dart';
+import 'package:flowingpod/features/home/home_page.dart';
+import 'package:flowingpod/features/library/library_page.dart';
+import 'package:flowingpod/features/profile/profile_page.dart';
+import 'package:flowingpod/features/search/search_page.dart';
+import 'package:flowingpod/widgets/mini_player.dart';
 import 'package:flutter/material.dart';
 
 /// Root navigation: a tab bar at the bottom and the persistent mini player

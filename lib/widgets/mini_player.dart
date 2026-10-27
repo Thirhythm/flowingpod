@@ -1,8 +1,8 @@
-import 'package:bilihear/features/player/player_page.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/widgets/cover_image.dart';
-import 'package:bilihear/widgets/marquee_text.dart';
-import 'package:bilihear/widgets/playlist_sheet.dart';
+import 'package:flowingpod/features/player/player_page.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/widgets/cover_image.dart';
+import 'package:flowingpod/widgets/marquee_text.dart';
+import 'package:flowingpod/widgets/playlist_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

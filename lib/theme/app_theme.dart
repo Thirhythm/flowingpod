@@ -1,4 +1,4 @@
-import 'package:bilihear/core/models/app_theme_mode.dart';
+import 'package:flowingpod/core/models/app_theme_mode.dart';
 import 'package:flutter/material.dart';
 
 /// Material 3 theme built around Bilibili's brand pink.

@@ -1,5 +1,5 @@
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/data/services/player_service.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/data/services/player_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// [bvid] doubles as the label so expectations read like the queue itself.

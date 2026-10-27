@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/models/bili_user.dart';
-import 'package:bilihear/data/repositories/auth_repository.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/models/bili_user.dart';
+import 'package:flowingpod/data/repositories/auth_repository.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Sign-in status of the Bilibili account.

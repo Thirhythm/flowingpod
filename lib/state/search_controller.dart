@@ -1,9 +1,12 @@
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/track_source.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 class SearchState {
   const SearchState({
+    required this.source,
     this.keyword = '',
     this.results = const [],
     this.page = 1,
@@ -13,6 +16,7 @@ class SearchState {
     this.error,
   });
 
+  final TrackSource source;
   final String keyword;
   final List<MediaTrack> results;
   final int page;
@@ -25,14 +29,15 @@ class SearchState {
       !loading && results.isEmpty && error == null && keyword.isNotEmpty;
 }
 
-final NotifierProvider<SearchController, SearchState> searchControllerProvider =
-    NotifierProvider<SearchController, SearchState>(SearchController.new);
+final searchControllerProvider =
+    NotifierProvider.family<SearchController, SearchState, TrackSource>(
+      SearchController.new,
+    );
 
-/// Keyword suggestions for a partially typed term.
+/// Search suggestions, always supplied by NetEase Cloud Music.
 ///
-/// The lookup is debounced by keeping the pending delay inside the provider:
-/// as soon as the term changes the provider is disposed, so an abandoned
-/// keystroke never reaches the network.
+/// The lookup is debounced by disposing the provider as soon as the term
+/// changes, so an abandoned keystroke never reaches the network.
 final searchSuggestionsProvider = FutureProvider.family<List<String>, String>((
   ref,
   term,
@@ -43,29 +48,42 @@ final searchSuggestionsProvider = FutureProvider.family<List<String>, String>((
   await Future<void>.delayed(const Duration(milliseconds: 300));
   if (!ref.mounted) return const [];
 
-  return ref.read(searchRepositoryProvider).suggest(trimmed);
+  return ref.read(neteaseRepositoryProvider).suggest(trimmed);
 }, isAutoDispose: true);
 
-/// Video search with pagination.
+/// Keyword search with pagination, kept separate per source so the two tabs
+/// can show their own results.
 class SearchController extends Notifier<SearchState> {
+  SearchController(this.source);
+
+  final TrackSource source;
+
   bool _loadingMore = false;
 
   @override
-  SearchState build() => const SearchState();
+  SearchState build() => SearchState(source: source);
 
   Future<void> search(String keyword) async {
     final trimmed = keyword.trim();
     if (trimmed.isEmpty) {
-      state = const SearchState();
+      state = SearchState(source: source);
       return;
     }
-    state = SearchState(keyword: trimmed, loading: true);
+    state = SearchState(source: source, keyword: trimmed, loading: true);
     try {
-      final result = await ref
-          .read(searchRepositoryProvider)
-          .searchVideos(keyword: trimmed);
+      final result = switch (source) {
+        TrackSource.bilibili =>
+          await ref
+              .read(searchRepositoryProvider)
+              .searchVideos(keyword: trimmed),
+        TrackSource.netease =>
+          await ref
+              .read(neteaseRepositoryProvider)
+              .searchSongs(keyword: trimmed),
+      };
       if (!ref.mounted) return;
       state = SearchState(
+        source: source,
         keyword: trimmed,
         results: result.items,
         page: result.page,
@@ -73,7 +91,11 @@ class SearchController extends Notifier<SearchState> {
       );
     } on BiliApiException catch (error) {
       if (!ref.mounted) return;
-      state = SearchState(keyword: trimmed, error: error.message);
+      state = SearchState(
+        source: source,
+        keyword: trimmed,
+        error: error.message,
+      );
     }
   }
 
@@ -81,6 +103,7 @@ class SearchController extends Notifier<SearchState> {
     if (_loadingMore || !state.hasMore || state.loading) return;
     _loadingMore = true;
     state = SearchState(
+      source: source,
       keyword: state.keyword,
       results: state.results,
       page: state.page,
@@ -88,11 +111,19 @@ class SearchController extends Notifier<SearchState> {
       loadingMore: true,
     );
     try {
-      final result = await ref
-          .read(searchRepositoryProvider)
-          .searchVideos(keyword: state.keyword, page: state.page + 1);
+      final result = switch (source) {
+        TrackSource.bilibili =>
+          await ref
+              .read(searchRepositoryProvider)
+              .searchVideos(keyword: state.keyword, page: state.page + 1),
+        TrackSource.netease =>
+          await ref
+              .read(neteaseRepositoryProvider)
+              .searchSongs(keyword: state.keyword, page: state.page + 1),
+      };
       if (!ref.mounted) return;
       state = SearchState(
+        source: source,
         keyword: state.keyword,
         results: [...state.results, ...result.items],
         page: result.page,
@@ -101,6 +132,7 @@ class SearchController extends Notifier<SearchState> {
     } on BiliApiException catch (error) {
       if (!ref.mounted) return;
       state = SearchState(
+        source: source,
         keyword: state.keyword,
         results: state.results,
         page: state.page,
@@ -112,5 +144,5 @@ class SearchController extends Notifier<SearchState> {
     }
   }
 
-  void clear() => state = const SearchState();
+  void clear() => state = SearchState(source: source);
 }

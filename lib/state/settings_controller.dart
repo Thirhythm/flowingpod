@@ -1,5 +1,5 @@
-import 'package:bilihear/core/models/app_theme_mode.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/models/app_theme_mode.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Whether tapping a track opens the full screen player automatically.

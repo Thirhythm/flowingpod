@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:bilihear/core/models/recent_folder.dart';
+import 'package:flowingpod/core/models/recent_folder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// On-device record of the favourite folders played from, newest first.

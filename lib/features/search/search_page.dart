@@ -1,12 +1,14 @@
-import 'package:bilihear/features/player/player_navigation.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/state/search_controller.dart';
-import 'package:bilihear/widgets/track_action_menu.dart';
-import 'package:bilihear/widgets/track_tile.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/track_source.dart';
+import 'package:flowingpod/features/player/player_navigation.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/state/search_controller.dart';
+import 'package:flowingpod/widgets/track_action_menu.dart';
+import 'package:flowingpod/widgets/track_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Searches Bilibili videos and plays the selected result's audio.
+/// Searches both supported services and plays the selected result's audio.
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
@@ -14,21 +16,27 @@ class SearchPage extends ConsumerStatefulWidget {
   ConsumerState<SearchPage> createState() => _SearchPageState();
 }
 
-class _SearchPageState extends ConsumerState<SearchPage> {
+class _SearchPageState extends ConsumerState<SearchPage>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _queryController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+  late final TabController _tabController;
+  int _lastIndex = 0;
+
+  TrackSource get _source =>
+      _tabController.index == 0 ? TrackSource.bilibili : TrackSource.netease;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(_onTabChanged);
     _queryController.addListener(_onQueryChanged);
   }
 
   @override
   void dispose() {
-    _scrollController
-      ..removeListener(_onScroll)
+    _tabController
+      ..removeListener(_onTabChanged)
       ..dispose();
     _queryController
       ..removeListener(_onQueryChanged)
@@ -36,11 +44,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.dispose();
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final position = _scrollController.position;
-    if (position.pixels >= position.maxScrollExtent - 400) {
-      ref.read(searchControllerProvider.notifier).loadMore();
+  /// Switching tabs reuses the current query, so both services can be compared
+  /// without retyping it.
+  void _onTabChanged() {
+    if (_lastIndex == _tabController.index) return;
+    _lastIndex = _tabController.index;
+    setState(() {});
+    final term = _queryController.text.trim();
+    if (term.isEmpty) return;
+    final state = ref.read(searchControllerProvider(_source));
+    if (state.keyword != term && !state.loading) {
+      ref.read(searchControllerProvider(_source).notifier).search(term);
     }
   }
 
@@ -48,7 +62,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   /// must rebuild the page for the list to follow the text.
   void _onQueryChanged() => setState(() {});
 
-  /// Runs a search and closes the suggestion list.
+  /// Runs a search on the active tab and closes the suggestion list.
   void _searchWith(String keyword) {
     final trimmed = keyword.trim();
     if (trimmed.isEmpty) return;
@@ -59,17 +73,25 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       );
     }
     FocusScope.of(context).unfocus();
-    ref.read(searchControllerProvider.notifier).search(trimmed);
-    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    ref.read(searchControllerProvider(_source).notifier).search(trimmed);
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(searchControllerProvider);
-    // Suggestions replace the results while the query differs from the last
-    // executed search.
+    final biliState = ref.watch(searchControllerProvider(TrackSource.bilibili));
+    final neteaseState = ref.watch(
+      searchControllerProvider(TrackSource.netease),
+    );
+    final activeState = _source == TrackSource.bilibili
+        ? biliState
+        : neteaseState;
     final term = _queryController.text.trim();
-    final showSuggestions = term.isNotEmpty && term != state.keyword;
+    final hasQuery = term.isNotEmpty;
+    final showSuggestions = hasQuery && term != activeState.keyword;
+    // The source tabs only make sense once a result area is on screen.
+    final showTabs =
+        !showSuggestions &&
+        (biliState.keyword.isNotEmpty || neteaseState.keyword.isNotEmpty);
 
     return Scaffold(
       appBar: AppBar(
@@ -88,41 +110,119 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             icon: const Icon(Icons.search_rounded),
             onPressed: () => _searchWith(_queryController.text),
           ),
-          if (state.results.isNotEmpty || showSuggestions)
+          if (activeState.results.isNotEmpty || hasQuery)
             IconButton(
               tooltip: '清除',
               icon: const Icon(Icons.close_rounded),
               onPressed: () {
                 _queryController.clear();
-                ref.read(searchControllerProvider.notifier).clear();
+                for (final source in TrackSource.values) {
+                  ref.read(searchControllerProvider(source).notifier).clear();
+                }
+                _lastIndex = 0;
+                if (_tabController.index != 0) _tabController.index = 0;
               },
             ),
         ],
+        bottom: showTabs
+            ? TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(text: '哔哩哔哩'),
+                  Tab(text: '网易云音乐'),
+                ],
+              )
+            : null,
       ),
-      body: showSuggestions
-          ? _SuggestionList(term: term, onSelected: _searchWith)
-          : _SearchBody(
-              state: state,
-              scrollController: _scrollController,
-              onRetry: () => ref
-                  .read(searchControllerProvider.notifier)
-                  .search(state.keyword),
-              onPlay: (index) async {
-                final track = state.results[index];
-                await ref
-                    .read(playerStateProvider.notifier)
-                    .playVideo(track.bvid);
-                if (!context.mounted) return;
-                await openPlayerIfEnabled(context, ref);
-              },
-              onLongPress: (index) =>
-                  showTrackActions(context, ref, track: state.results[index]),
-            ),
+      body: TabBarView(
+        controller: _tabController,
+        physics: showTabs ? null : const NeverScrollableScrollPhysics(),
+        children: [
+          for (final source in TrackSource.values)
+            _SearchTab(source: source, term: term, onSearch: _searchWith),
+        ],
+      ),
+    );
+  }
+}
+
+/// Results of one source. Each tab keeps its own scroll position and search
+/// state, so switching tabs does not lose the other service's results.
+class _SearchTab extends ConsumerStatefulWidget {
+  const _SearchTab({
+    required this.source,
+    required this.term,
+    required this.onSearch,
+  });
+
+  final TrackSource source;
+  final String term;
+  final ValueChanged<String> onSearch;
+
+  @override
+  ConsumerState<_SearchTab> createState() => _SearchTabState();
+}
+
+class _SearchTabState extends ConsumerState<_SearchTab> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 400) {
+      ref.read(searchControllerProvider(widget.source).notifier).loadMore();
+    }
+  }
+
+  Future<void> _play(int index, List<MediaTrack> results) async {
+    final track = results[index];
+    await ref.read(playerStateProvider.notifier).playTrack(track);
+    if (!mounted) return;
+    await openPlayerIfEnabled(context, ref);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(searchControllerProvider(widget.source));
+    final showSuggestions =
+        widget.term.isNotEmpty && widget.term != state.keyword;
+
+    if (showSuggestions) {
+      return _SuggestionList(term: widget.term, onSelected: widget.onSearch);
+    }
+
+    final results = state.results;
+    return _SearchBody(
+      state: state,
+      scrollController: _scrollController,
+      onRetry: () => ref
+          .read(searchControllerProvider(widget.source).notifier)
+          .search(state.keyword),
+      onPlay: (index) => _play(index, results),
+      onLongPress: (index) =>
+          showTrackActions(context, ref, track: results[index]),
     );
   }
 }
 
 /// Keyword suggestions shown while the user is still typing.
+///
+/// Suggestions always come from NetEase Cloud Music, regardless of the active
+/// result tab.
 class _SuggestionList extends ConsumerWidget {
   const _SuggestionList({required this.term, required this.onSelected});
 
@@ -218,6 +318,7 @@ class _SearchBody extends StatelessWidget {
         }
         return TrackTile(
           track: state.results[index],
+          showSource: false,
           onTap: () => onPlay(index),
           onLongPress: () => onLongPress(index),
         );

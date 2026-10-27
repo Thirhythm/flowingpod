@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:bilihear/core/api/bili_endpoints.dart';
-import 'package:bilihear/core/models/json_utils.dart';
-import 'package:bilihear/data/repositories/auth_repository.dart';
+import 'package:flowingpod/core/api/bili_endpoints.dart';
+import 'package:flowingpod/core/models/json_utils.dart';
+import 'package:flowingpod/data/repositories/auth_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 

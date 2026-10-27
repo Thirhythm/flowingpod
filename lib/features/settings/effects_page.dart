@@ -1,8 +1,8 @@
-import 'package:bilihear/core/models/equalizer_capabilities.dart';
-import 'package:bilihear/core/models/equalizer_preset.dart';
-import 'package:bilihear/core/utils/formatters.dart';
-import 'package:bilihear/state/effects_controller.dart';
-import 'package:bilihear/widgets/section_header.dart';
+import 'package:flowingpod/core/models/equalizer_capabilities.dart';
+import 'package:flowingpod/core/models/equalizer_preset.dart';
+import 'package:flowingpod/core/utils/formatters.dart';
+import 'package:flowingpod/state/effects_controller.dart';
+import 'package:flowingpod/widgets/section_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

@@ -1,5 +1,5 @@
-import 'package:bilihear/core/models/equalizer_preset.dart';
-import 'package:bilihear/core/models/json_utils.dart';
+import 'package:flowingpod/core/models/equalizer_preset.dart';
+import 'package:flowingpod/core/models/json_utils.dart';
 
 /// Persisted sound-effect preferences (equalizer + loudness enhancer).
 class AudioEffectSettings {

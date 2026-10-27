@@ -1,10 +1,10 @@
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/api/bili_client.dart';
-import 'package:bilihear/data/repositories/auth_repository.dart';
-import 'package:bilihear/features/login/geetest_view.dart';
-import 'package:bilihear/features/login/login_page.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/api/bili_client.dart';
+import 'package:flowingpod/data/repositories/auth_repository.dart';
+import 'package:flowingpod/features/login/geetest_view.dart';
+import 'package:flowingpod/features/login/login_page.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

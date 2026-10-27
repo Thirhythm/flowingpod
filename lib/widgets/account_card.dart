@@ -1,8 +1,8 @@
-import 'package:bilihear/core/models/bili_user.dart';
-import 'package:bilihear/core/utils/formatters.dart';
-import 'package:bilihear/features/login/login_page.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/widgets/user_avatar.dart';
+import 'package:flowingpod/core/models/bili_user.dart';
+import 'package:flowingpod/core/utils/formatters.dart';
+import 'package:flowingpod/features/login/login_page.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/widgets/user_avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -98,7 +98,7 @@ class _LoggedOut extends StatelessWidget {
             Text('未登录', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
-              '登录后可同步收藏夹与观看历史',
+              '登录后可同步歌单与观看历史',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

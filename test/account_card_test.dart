@@ -1,6 +1,6 @@
-import 'package:bilihear/core/models/bili_user.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/widgets/account_card.dart';
+import 'package:flowingpod/core/models/bili_user.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/widgets/account_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

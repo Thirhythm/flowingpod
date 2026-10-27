@@ -1,14 +1,15 @@
-import 'package:bilihear/core/models/history_entry.dart';
-import 'package:bilihear/core/utils/formatters.dart';
-import 'package:bilihear/features/player/player_navigation.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/state/library_controllers.dart';
-import 'package:bilihear/state/local_history_controller.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/widgets/cover_image.dart';
-import 'package:bilihear/widgets/local_data_banner.dart';
-import 'package:bilihear/widgets/track_action_menu.dart';
-import 'package:bilihear/widgets/track_tile.dart';
+import 'package:flowingpod/core/models/history_entry.dart';
+import 'package:flowingpod/core/utils/formatters.dart';
+import 'package:flowingpod/features/player/player_navigation.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/state/library_controllers.dart';
+import 'package:flowingpod/state/local_history_controller.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/widgets/cover_image.dart';
+import 'package:flowingpod/widgets/local_data_banner.dart';
+import 'package:flowingpod/widgets/track_action_menu.dart';
+import 'package:flowingpod/widgets/track_source_badge.dart';
+import 'package:flowingpod/widgets/track_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -163,7 +164,7 @@ class _HistoryViewState extends ConsumerState<HistoryView> {
                   onTap: () async {
                     await ref
                         .read(playerStateProvider.notifier)
-                        .playVideo(entry.track.bvid, page: entry.track.page);
+                        .playTrack(entry.track);
                     if (!context.mounted) return;
                     await openPlayerIfEnabled(context, ref);
                   },
@@ -209,9 +210,7 @@ class _HistoryViewState extends ConsumerState<HistoryView> {
               return TrackTile(
                 track: track,
                 onTap: () async {
-                  await ref
-                      .read(playerStateProvider.notifier)
-                      .playVideo(track.bvid, page: track.page);
+                  await ref.read(playerStateProvider.notifier).playTrack(track);
                   if (!context.mounted) return;
                   await openPlayerIfEnabled(context, ref);
                 },
@@ -305,10 +304,18 @@ class _CloudHistoryTile extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Text(
-        parts.join(' · '),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      subtitle: Row(
+        children: [
+          TrackSourceBadge(source: entry.track.source),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              parts.join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

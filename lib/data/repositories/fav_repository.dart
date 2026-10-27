@@ -1,10 +1,10 @@
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/api/bili_client.dart';
-import 'package:bilihear/core/api/bili_endpoints.dart';
-import 'package:bilihear/core/models/fav_folder.dart';
-import 'package:bilihear/core/models/json_utils.dart';
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/paged_result.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/api/bili_client.dart';
+import 'package:flowingpod/core/api/bili_endpoints.dart';
+import 'package:flowingpod/core/models/fav_folder.dart';
+import 'package:flowingpod/core/models/json_utils.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/paged_result.dart';
 
 /// Reads the signed-in user's favourite folders and their contents.
 class FavRepository {
@@ -27,6 +27,40 @@ class FavRepository {
       for (final folder in JsonUtils.list(data['list']))
         FavFolder.fromJson(folder),
     ];
+  }
+
+  /// Creates a favourite folder and returns its media id.
+  Future<int> createFolder(String title) async {
+    final response = await _client.postForm(BiliEndpoints.favFolderAdd, {
+      'title': title,
+      'description': '',
+      'privacy': 0,
+      'cover': '',
+      'csrf': _csrf(),
+    });
+    final id = JsonUtils.integer(JsonUtils.map(response['data'])['id']);
+    if (id <= 0) {
+      throw const BiliApiException(code: -1, message: '创建收藏夹失败');
+    }
+    return id;
+  }
+
+  /// Renames a favourite folder created by the user.
+  Future<void> renameFolder(int mediaId, String title) async {
+    await _client.postForm(BiliEndpoints.favFolderEdit, {
+      'media_id': mediaId,
+      'title': title,
+      'csrf': _csrf(),
+    });
+  }
+
+  /// Deletes a favourite folder created by the user.
+  Future<void> deleteFolder(int mediaId) async {
+    await _client.postForm(BiliEndpoints.favFolderDel, {
+      'media_ids': mediaId,
+      'platform': 'web',
+      'csrf': _csrf(),
+    });
   }
 
   /// Fetches the videos stored in a single folder.
@@ -78,18 +112,6 @@ class FavRepository {
       page: page,
       hasMore: JsonUtils.boolean(data['has_more']),
     );
-  }
-
-  /// Whether the video is stored in at least one favourite folder.
-  ///
-  /// [aid] accepts either a numeric `avid` or a `bvid`.
-  Future<bool> isFavoured(String aid) async {
-    final response = await _client.getJson(
-      BiliEndpoints.favFavoured,
-      requireLogin: true,
-      query: {'aid': aid},
-    );
-    return JsonUtils.boolean(JsonUtils.map(response['data'])['favoured']);
   }
 
   /// Adds the video to [addTo] and/or removes it from [removeFrom].

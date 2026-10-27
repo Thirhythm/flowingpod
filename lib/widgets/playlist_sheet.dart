@@ -1,9 +1,10 @@
 import 'dart:math' as math;
 
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/widgets/cover_image.dart';
-import 'package:bilihear/widgets/play_mode_button.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/widgets/cover_image.dart';
+import 'package:flowingpod/widgets/play_mode_button.dart';
+import 'package:flowingpod/widgets/track_source_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -210,10 +211,18 @@ class _QueueRow extends StatelessWidget {
             fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
-        subtitle: Text(
-          track.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        subtitle: Row(
+          children: [
+            TrackSourceBadge(source: track.source),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                track.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
         trailing: IconButton(
           tooltip: '从列表移除',

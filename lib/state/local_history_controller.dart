@@ -1,5 +1,5 @@
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Locally stored play history, shown while no Bilibili session is active.

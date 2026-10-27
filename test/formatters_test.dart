@@ -1,5 +1,5 @@
-import 'package:bilihear/core/utils/formatters.dart';
-import 'package:bilihear/core/utils/text_utils.dart';
+import 'package:flowingpod/core/utils/formatters.dart';
+import 'package:flowingpod/core/utils/text_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:bilihear/core/models/app_theme_mode.dart';
-import 'package:bilihear/core/models/audio_effect_settings.dart';
-import 'package:bilihear/core/models/json_utils.dart';
+import 'package:flowingpod/core/models/app_theme_mode.dart';
+import 'package:flowingpod/core/models/audio_effect_settings.dart';
+import 'package:flowingpod/core/models/json_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// App preferences that are not tied to a Bilibili session.

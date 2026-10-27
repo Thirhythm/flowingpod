@@ -1,13 +1,13 @@
 import 'dart:math' as math;
 
-import 'package:bilihear/core/utils/formatters.dart';
-import 'package:bilihear/state/library_controllers.dart';
-import 'package:bilihear/state/player_controller.dart';
-import 'package:bilihear/widgets/cover_image.dart';
-import 'package:bilihear/widgets/favorite_sheet.dart';
-import 'package:bilihear/widgets/marquee_text.dart';
-import 'package:bilihear/widgets/play_mode_button.dart';
-import 'package:bilihear/widgets/playlist_sheet.dart';
+import 'package:flowingpod/core/utils/formatters.dart';
+import 'package:flowingpod/state/library_controllers.dart';
+import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/widgets/cover_image.dart';
+import 'package:flowingpod/widgets/favorite_sheet.dart';
+import 'package:flowingpod/widgets/marquee_text.dart';
+import 'package:flowingpod/widgets/play_mode_button.dart';
+import 'package:flowingpod/widgets/playlist_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,7 +28,7 @@ class PlayerPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('正在播放'),
         actions: [
-          if (track != null && track.aid > 0)
+          if (track != null && track.canFavorite)
             IconButton(
               tooltip: favoured ? '已收藏' : '收藏',
               icon: Icon(
@@ -37,7 +37,7 @@ class PlayerPage extends ConsumerWidget {
                     : Icons.favorite_border_rounded,
                 color: favoured ? Theme.of(context).colorScheme.primary : null,
               ),
-              onPressed: () => FavoriteSheet.show(context, track: track),
+              onPressed: () => FavoriteSheet.show(context, ref, track: track),
             ),
         ],
       ),

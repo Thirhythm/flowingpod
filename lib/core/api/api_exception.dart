@@ -1,5 +1,5 @@
-/// Error thrown when a Bilibili API responds with a non-zero `code`
-/// or when the transport layer fails.
+/// Error thrown when a supported service responds with a non-zero business
+/// `code`, or when the transport layer fails.
 class BiliApiException implements Exception {
   const BiliApiException({
     required this.code,

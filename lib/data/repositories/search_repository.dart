@@ -1,10 +1,9 @@
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/api/bili_client.dart';
-import 'package:bilihear/core/api/bili_endpoints.dart';
-import 'package:bilihear/core/models/json_utils.dart';
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/paged_result.dart';
-import 'package:bilihear/core/utils/text_utils.dart';
+import 'package:flowingpod/core/api/bili_client.dart';
+import 'package:flowingpod/core/api/bili_endpoints.dart';
+import 'package:flowingpod/core/models/json_utils.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/paged_result.dart';
+import 'package:flowingpod/core/utils/text_utils.dart';
 
 /// Video search sorted by relevance, with pagination.
 class SearchRepository {
@@ -42,40 +41,6 @@ class SearchRepository {
       hasMore: page < numPages && items.isNotEmpty,
       total: JsonUtils.integer(data['numResults']),
     );
-  }
-
-  /// Fetches up to ten keyword suggestions for a partially typed [term].
-  ///
-  /// Suggestion failures never surface to the user: the UI simply shows none.
-  Future<List<String>> suggest(String term) async {
-    final trimmed = term.trim();
-    if (trimmed.isEmpty) return const [];
-    try {
-      final response = await _client.getJson(
-        BiliEndpoints.searchSuggest,
-        baseUrl: BiliEndpoints.suggestBase,
-        query: {
-          'term': trimmed,
-          'main_ver': 'v1',
-          'suggest_type': 'accurate',
-          'sub_type': 'tag',
-        },
-      );
-      final result = JsonUtils.map(response['result']);
-      final suggestions = <String>[];
-      for (final tag in JsonUtils.list(result['tag'])) {
-        // `value` is the plain keyword, `name` carries highlight markup.
-        final value = JsonUtils.string(tag['value']);
-        final text = value.isNotEmpty
-            ? value
-            : TextUtils.stripHtml(tag['name']);
-        if (text.isEmpty || suggestions.contains(text)) continue;
-        suggestions.add(text);
-      }
-      return suggestions;
-    } on BiliApiException {
-      return const [];
-    }
   }
 
   MediaTrack _toTrack(Map<String, dynamic> json) => MediaTrack(

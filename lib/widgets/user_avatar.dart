@@ -1,4 +1,4 @@
-import 'package:bilihear/core/utils/image_url.dart';
+import 'package:flowingpod/core/utils/image_url.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 

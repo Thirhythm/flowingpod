@@ -1,5 +1,5 @@
-name: bilihear
-description: "哔哩哔哩在线音乐播放器"
+name: flowingpod
+description: "哔哩哔哩与网易云音乐在线音乐播放器"
 publish_to: 'none'
 version: 1.2.3+4
 
@@ -21,6 +21,7 @@ dependencies:
   intl: ^0.20.3
   just_audio: ^0.10.6
   marquee: ^2.3.0
+  pointycastle: ^4.0.0
   qr_flutter: ^4.1.0
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.3

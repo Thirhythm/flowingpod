@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:bilihear/core/api/api_exception.dart';
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/play_mode.dart';
-import 'package:bilihear/core/models/player_state.dart';
-import 'package:bilihear/data/services/player_service.dart';
-import 'package:bilihear/state/auth_controller.dart';
-import 'package:bilihear/state/library_controllers.dart';
-import 'package:bilihear/state/local_history_controller.dart';
-import 'package:bilihear/state/providers.dart';
+import 'package:flowingpod/core/api/api_exception.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/play_mode.dart';
+import 'package:flowingpod/core/models/player_state.dart';
+import 'package:flowingpod/data/services/player_service.dart';
+import 'package:flowingpod/state/auth_controller.dart';
+import 'package:flowingpod/state/library_controllers.dart';
+import 'package:flowingpod/state/local_history_controller.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Mirror of the audio service state, consumed by the UI.
@@ -62,7 +62,10 @@ class PlayerController extends Notifier<PlayerState> {
   Future<void> _recordHistory(MediaTrack track) async {
     final signedIn = ref.read(authControllerProvider).isLoggedIn;
     final localHistory = ref.read(localHistoryProvider.notifier);
-    final cloudHistory = signedIn ? ref.read(historyRepositoryProvider) : null;
+    // Only Bilibili videos belong to the Bilibili watch history.
+    final cloudHistory = signedIn && !track.isNetease
+        ? ref.read(historyRepositoryProvider)
+        : null;
 
     await localHistory.record(track);
     if (cloudHistory == null) return;
@@ -76,29 +79,22 @@ class PlayerController extends Notifier<PlayerState> {
     }
   }
 
-  /// Loads a video (expanding every part) and hands it to the player, starting
-  /// at [page].
-  ///
-  /// Only the queue is resolved here. Resolving the audio stream and buffering
-  /// the first track continues in the background, so callers can react — for
-  /// instance open the full player — as soon as the track is known instead of
-  /// waiting for the network to deliver the media.
-  Future<void> playVideo(String bvid, {int page = 1}) async {
-    final detail = await ref
-        .read(videoRepositoryProvider)
-        .fetchDetail(bvid: bvid);
-    final tracks = detail.toTracks();
-    final index = tracks.indexWhere((track) => track.page == page);
-    unawaited(_service.setQueue(tracks, startIndex: index < 0 ? 0 : index));
-  }
-
   /// Plays an explicit list, e.g. every item of a favourite folder.
   ///
-  /// As with [playVideo], the queue is handed over right away and the audio
-  /// keeps loading afterwards.
+  /// The queue is handed over right away and the audio keeps loading
+  /// afterwards.
   Future<void> playTracks(List<MediaTrack> tracks, {int startIndex = 0}) async {
     unawaited(_service.setQueue(tracks, startIndex: startIndex));
   }
+
+  /// Plays one track directly after the current entry.
+  ///
+  /// The track is inserted behind the one playing now and starts right away; a
+  /// track the queue already holds is moved there instead of being added twice.
+  /// With an empty queue it simply becomes the queue. Bilibili entries that
+  /// still lack a part id, such as search results, are expanded into the video's
+  /// parts by the player itself.
+  Future<void> playTrack(MediaTrack track) => _service.playNext(track);
 
   Future<void> togglePlay() =>
       state.playing ? _service.pause() : _service.play();

@@ -1,8 +1,9 @@
-import 'package:bilihear/core/models/audio_stream.dart';
-import 'package:bilihear/core/models/history_entry.dart';
-import 'package:bilihear/core/models/media_track.dart';
-import 'package:bilihear/core/models/play_mode.dart';
-import 'package:bilihear/core/models/video_detail.dart';
+import 'package:flowingpod/core/models/audio_stream.dart';
+import 'package:flowingpod/core/models/history_entry.dart';
+import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/play_mode.dart';
+import 'package:flowingpod/core/models/track_source.dart';
+import 'package:flowingpod/core/models/video_detail.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -67,6 +68,28 @@ void main() {
         partTitle: 'P2',
       );
       expect(multi.displayTitle, '合集 · P2');
+    });
+
+    test('keeps NetEase songs separate from Bilibili entries', () {
+      const song = MediaTrack(
+        source: TrackSource.netease,
+        songId: 42,
+        title: '网易云歌曲',
+        artist: '歌手',
+        cover: '',
+        duration: Duration(seconds: 200),
+      );
+
+      expect(song.id, 'netease:42');
+      expect(song.partKey, 'netease:42');
+      expect(song.isResolved, isTrue);
+      expect(song.canFavorite, isTrue);
+
+      final restored = MediaTrack.fromJson(song.toJson());
+      expect(restored, song);
+      expect(restored.source, TrackSource.netease);
+      expect(restored.songId, 42);
+      expect(restored.isNetease, isTrue);
     });
   });
 
@@ -161,7 +184,12 @@ void main() {
     });
 
     test('reports emptiness when no stream is available', () {
-      expect(PlaybackSource.fromPlayUrl({'dash': {'audio': null}}).isEmpty, isTrue);
+      expect(
+        PlaybackSource.fromPlayUrl({
+          'dash': {'audio': null},
+        }).isEmpty,
+        isTrue,
+      );
     });
   });
 
