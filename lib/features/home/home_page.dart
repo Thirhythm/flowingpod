@@ -1,10 +1,11 @@
 import 'package:flowingpod/core/models/media_track.dart';
-import 'package:flowingpod/core/models/recent_folder.dart';
+import 'package:flowingpod/core/models/playlist_ref.dart';
+import 'package:flowingpod/core/models/recent_playlist.dart';
 import 'package:flowingpod/features/library/playlist_detail_page.dart';
 import 'package:flowingpod/features/player/player_navigation.dart';
 import 'package:flowingpod/state/auth_controller.dart';
 import 'package:flowingpod/state/local_history_controller.dart';
-import 'package:flowingpod/state/local_recent_folders_controller.dart';
+import 'package:flowingpod/state/local_recent_playlists_controller.dart';
 import 'package:flowingpod/state/player_controller.dart';
 import 'package:flowingpod/widgets/cover_image.dart';
 import 'package:flowingpod/widgets/track_action_menu.dart';
@@ -12,8 +13,8 @@ import 'package:flowingpod/widgets/track_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Landing page: the favourite folders played recently plus the six most
-/// recently played tracks.
+/// Landing page: the playlists played recently plus the six most recently
+/// played tracks.
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
@@ -27,7 +28,7 @@ class HomePage extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 24),
           children: const [
-            _RecentFolders(),
+            _RecentPlaylists(),
             _RecentPlays(),
           ],
         ),
@@ -36,36 +37,44 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-/// Favourite folders played recently, shown as large cover shortcuts at the
-/// top of 最近播放. Hidden until one has been played from.
-class _RecentFolders extends ConsumerWidget {
-  const _RecentFolders();
+/// Playlists played recently, shown as large cover shortcuts at the top of
+/// 最近播放. Hidden until one has been played from.
+class _RecentPlaylists extends ConsumerWidget {
+  const _RecentPlaylists();
+
+  /// Home only ever surfaces a short teaser across all sources.
+  static const int limit = 6;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final folders = ref.watch(localRecentFoldersProvider);
-    if (folders.isEmpty) return const SizedBox.shrink();
+    final playlists = ref.watch(localRecentPlaylistsProvider);
+    if (playlists.isEmpty) return const SizedBox.shrink();
+    final recent = playlists.take(limit).toList();
     return SizedBox(
       height: 168,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: folders.length,
+        itemCount: recent.length,
         separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, index) =>
-            _RecentFolderCard(folder: folders[index]),
+            _RecentPlaylistCard(playlist: recent[index]),
       ),
     );
   }
 }
 
-class _RecentFolderCard extends ConsumerWidget {
-  const _RecentFolderCard({required this.folder});
+class _RecentPlaylistCard extends ConsumerWidget {
+  const _RecentPlaylistCard({required this.playlist});
 
   static const double coverWidth = 160;
   static const double coverHeight = 100;
 
-  final RecentFolder folder;
+  final RecentPlaylist playlist;
+
+  String get _countLabel => playlist.source == PlaylistSource.bilibili
+      ? '${playlist.count} 个内容'
+      : '${playlist.count} 首';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -76,7 +85,7 @@ class _RecentFolderCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => FolderDetailPage(folder: folder.toFolder()),
+            builder: (_) => PlaylistDetailPage(playlist: playlist.toRef()),
           ),
         ),
         onLongPress: () => _confirmRemove(context, ref),
@@ -84,14 +93,14 @@ class _RecentFolderCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CoverImage(
-              url: folder.cover,
+              url: playlist.cover,
               width: coverWidth,
               height: coverHeight,
               radius: 12,
             ),
             const SizedBox(height: 6),
             Text(
-              folder.title,
+              playlist.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -100,7 +109,7 @@ class _RecentFolderCard extends ConsumerWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '${folder.mediaCount} 个内容',
+              _countLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
@@ -113,13 +122,13 @@ class _RecentFolderCard extends ConsumerWidget {
     );
   }
 
-  /// Asks before dropping the shortcut; the folder itself stays untouched.
+  /// Asks before dropping the shortcut; the playlist itself stays untouched.
   Future<void> _confirmRemove(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('移除收藏夹'),
-        content: Text('确定将「${folder.title}」从最近播放的收藏夹中移除吗？'),
+        title: const Text('移除记录'),
+        content: Text('确定将「${playlist.title}」从最近播放中移除吗？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -133,7 +142,7 @@ class _RecentFolderCard extends ConsumerWidget {
       ),
     );
     if (confirmed ?? false) {
-      await ref.read(localRecentFoldersProvider.notifier).remove(folder);
+      await ref.read(localRecentPlaylistsProvider.notifier).remove(playlist);
     }
   }
 }

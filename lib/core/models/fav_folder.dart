@@ -14,7 +14,8 @@ class FavFolder {
   final String title;
   final int mediaCount;
 
-  /// `attr == 0` marks a normal, user created folder.
+  /// Bit 1 of `attr` is set on user created folders; it is clear on the
+  /// undeletable default 默认收藏夹.
   final int attr;
 
   final bool isDefault;
@@ -26,7 +27,7 @@ class FavFolder {
       title: JsonUtils.string(json['title'], fallback: '未命名收藏夹'),
       mediaCount: JsonUtils.integer(json['media_count']),
       attr: attr,
-      isDefault: attr == 0 && JsonUtils.integer(json['fav_state']) == 0 && JsonUtils.boolean(json['is_default_folder']),
+      isDefault: (attr & 2) == 0,
     );
   }
 }

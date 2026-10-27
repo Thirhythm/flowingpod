@@ -124,6 +124,10 @@ class _SearchPageState extends ConsumerState<SearchPage>
               },
             ),
         ],
+        // Always supply a bottom so the toolbar keeps the same position in the
+        // AppBar's tree. Passing `null` swaps the AppBar's root child between a
+        // Column and a Flexible, which remounts the title TextField and drops
+        // the keyboard whenever the query stops matching the active search.
         bottom: showTabs
             ? TabBar(
                 controller: _tabController,
@@ -132,7 +136,10 @@ class _SearchPageState extends ConsumerState<SearchPage>
                   Tab(text: '网易云音乐'),
                 ],
               )
-            : null,
+            : const PreferredSize(
+                preferredSize: Size.zero,
+                child: SizedBox.shrink(),
+              ),
       ),
       body: TabBarView(
         controller: _tabController,

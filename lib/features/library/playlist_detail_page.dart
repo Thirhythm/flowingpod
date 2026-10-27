@@ -1,15 +1,14 @@
 import 'dart:async';
 
 import 'package:flowingpod/core/api/api_exception.dart';
-import 'package:flowingpod/core/models/fav_folder.dart';
 import 'package:flowingpod/core/models/local_playlist.dart';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/playlist_ref.dart';
-import 'package:flowingpod/core/models/recent_folder.dart';
+import 'package:flowingpod/core/models/recent_playlist.dart';
 import 'package:flowingpod/features/player/player_navigation.dart';
 import 'package:flowingpod/state/library_controllers.dart';
 import 'package:flowingpod/state/local_playlists_controller.dart';
-import 'package:flowingpod/state/local_recent_folders_controller.dart';
+import 'package:flowingpod/state/local_recent_playlists_controller.dart';
 import 'package:flowingpod/state/netease_library_controllers.dart';
 import 'package:flowingpod/state/player_controller.dart';
 import 'package:flowingpod/state/providers.dart';
@@ -42,7 +41,7 @@ class _PlaylistData {
 ///
 /// Long pressing a row enters the batch mode: items can be selected, removed
 /// and copied into another playlist. Local and NetEase playlists can also be
-/// reordered by dragging the handle on each row.
+/// reordered there, by dragging the handle shown on each row.
 class PlaylistDetailPage extends ConsumerStatefulWidget {
   const PlaylistDetailPage({super.key, required this.playlist});
 
@@ -197,14 +196,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
-              if (data.canReorder && !_selecting)
-                Text(
-                  '拖动右侧手柄调整顺序',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                )
-              else if (widget.playlist.source == PlaylistSource.netease &&
+              if (widget.playlist.source == PlaylistSource.netease &&
                   widget.playlist.count > data.tracks.length)
                 Text(
                   '仅显示前 ${data.tracks.length} 首',
@@ -279,7 +271,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
         leading: _selecting
             ? Checkbox(value: selected, onChanged: (_) => _toggle(track))
             : null,
-        trailing: showDragHandle && !_selecting
+        trailing: showDragHandle && _selecting
             ? ReorderableDragStartListener(
                 index: index,
                 child: const Padding(
@@ -324,9 +316,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
   Future<void> _play(List<MediaTrack> tracks, int index) async {
     if (tracks.isEmpty) return;
-    if (widget.playlist.source == PlaylistSource.bilibili) {
-      _recordRecentFolder(tracks);
-    }
+    _recordRecentPlaylist(tracks);
     await ref
         .read(playerStateProvider.notifier)
         .playTracks(tracks, startIndex: index);
@@ -334,16 +324,17 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     await openPlayerIfEnabled(context, ref);
   }
 
-  void _recordRecentFolder(List<MediaTrack> tracks) {
+  void _recordRecentPlaylist(List<MediaTrack> tracks) {
     unawaited(
       ref
-          .read(localRecentFoldersProvider.notifier)
+          .read(localRecentPlaylistsProvider.notifier)
           .record(
-            RecentFolder(
-              id: widget.playlist.numericId,
+            RecentPlaylist(
+              source: widget.playlist.source,
+              id: widget.playlist.id,
               title: widget.playlist.title,
               cover: tracks.isEmpty ? '' : tracks.first.cover,
-              mediaCount: widget.playlist.count,
+              count: widget.playlist.count,
             ),
           ),
     );
@@ -521,22 +512,5 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
 
   void _toast(String message) => ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-  );
-}
-
-/// Compatibility wrapper used by the home page's recent favourite folders.
-class FolderDetailPage extends StatelessWidget {
-  const FolderDetailPage({super.key, required this.folder});
-
-  final FavFolder folder;
-
-  @override
-  Widget build(BuildContext context) => PlaylistDetailPage(
-    playlist: PlaylistRef(
-      source: PlaylistSource.bilibili,
-      id: '${folder.id}',
-      title: folder.title,
-      count: folder.mediaCount,
-    ),
   );
 }

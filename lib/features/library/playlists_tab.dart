@@ -95,10 +95,7 @@ class PlaylistsTab extends ConsumerWidget {
     );
     return ListTile(
       leading: playlist.isLiked
-          ? const _LeadingIcon(
-              icon: Icons.favorite_rounded,
-              color: Color(0xFFE54545),
-            )
+          ? const _LeadingIcon(icon: Icons.favorite_rounded, highlighted: true)
           : playlist.cover.isEmpty
           ? const _LeadingIcon(icon: Icons.queue_music_rounded)
           : CoverImage(url: playlist.cover, size: 44, radius: 8),
@@ -304,7 +301,7 @@ class _CloudSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return ExpansionTile(
-      initiallyExpanded: true,
+      initiallyExpanded: false,
       tilePadding: const EdgeInsets.symmetric(horizontal: 16),
       childrenPadding: EdgeInsets.zero,
       title: Text(
@@ -465,10 +462,7 @@ class _NeteaseTile extends ConsumerWidget {
     );
     return ListTile(
       leading: playlist.isLiked
-          ? const _LeadingIcon(
-              icon: Icons.favorite_rounded,
-              color: Color(0xFFE54545),
-            )
+          ? const _LeadingIcon(icon: Icons.favorite_rounded, highlighted: true)
           : CoverImage(url: playlist.coverUrl, size: 44, radius: 8),
       title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text('${playlist.trackCount} 首'),
@@ -539,18 +533,28 @@ class _NeteaseTile extends ConsumerWidget {
 }
 
 class _LeadingIcon extends StatelessWidget {
-  const _LeadingIcon({required this.icon, this.color});
+  const _LeadingIcon({required this.icon, this.highlighted = false});
 
   final IconData icon;
-  final Color? color;
+
+  /// Draws the icon in the theme colour, used for the heart of 我喜欢的音乐.
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return CircleAvatar(
-      radius: 22,
-      backgroundColor: scheme.secondaryContainer,
-      child: Icon(icon, color: color ?? scheme.onSecondaryContainer, size: 22),
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        icon,
+        size: 22,
+        color: highlighted ? scheme.primary : scheme.onSecondaryContainer,
+      ),
     );
   }
 }

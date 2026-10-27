@@ -62,6 +62,10 @@ Widget _host() => ProviderScope(
     search
         .searchControllerProvider(TrackSource.bilibili)
         .overrideWith(() => _FailedSearch(TrackSource.bilibili)),
+    // The edit test lands on this term; keep it off the network.
+    search.searchSuggestionsProvider('taylo').overrideWith(
+      (ref) async => const <String>[],
+    ),
   ],
   // Mirrors AppShell: a Scaffold holding the mini player and the page Scaffold.
   child: MaterialApp(
@@ -121,6 +125,41 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('editing the query after a search keeps the field focused', (
+    tester,
+  ) async {
+    _setViewport(tester, logicalSize: const Size(411, 914), keyboard: 300);
+    await tester.pumpWidget(_host());
+    await tester.pumpAndSettle();
+
+    final field = find.byType(TextField);
+    await tester.enterText(field, 'taylor');
+    await tester.pumpAndSettle();
+    expect(find.text('重试'), findsOneWidget, reason: '搜索结果区应已出现');
+
+    final focusNode = tester
+        .widget<EditableText>(find.byType(EditableText))
+        .focusNode;
+    expect(focusNode.hasFocus, isTrue);
+
+    // Backspace the last character: the query no longer matches the searched
+    // keyword, so the tab bar is hidden and the body switches to suggestions.
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'taylo',
+        selection: TextSelection.collapsed(offset: 5),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText)).focusNode,
+      same(focusNode),
+      reason: '输入框不应被重建',
+    );
+    expect(focusNode.hasFocus, isTrue, reason: '删除字符后软键盘不应收起');
   });
 
   testWidgets('the real shell uses the whole area the keyboard leaves', (

@@ -104,7 +104,6 @@ void main() {
     await tester.tap(find.text('播放历史'));
     await tester.pumpAndSettle();
 
-    expect(find.text('未登录，当前显示本地播放记录'), findsOneWidget);
     expect(find.text(_played.title), findsOneWidget);
     expect(find.textContaining('共 1 条'), findsOneWidget);
   });

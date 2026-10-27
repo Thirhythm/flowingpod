@@ -5,7 +5,7 @@ import 'package:flowingpod/data/repositories/fav_repository.dart';
 import 'package:flowingpod/data/repositories/history_repository.dart';
 import 'package:flowingpod/data/repositories/local_history_repository.dart';
 import 'package:flowingpod/data/repositories/local_playlist_repository.dart';
-import 'package:flowingpod/data/repositories/local_recent_folders_repository.dart';
+import 'package:flowingpod/data/repositories/local_recent_playlists_repository.dart';
 import 'package:flowingpod/data/repositories/netease_repository.dart';
 import 'package:flowingpod/data/repositories/search_repository.dart';
 import 'package:flowingpod/data/repositories/settings_repository.dart';
@@ -83,11 +83,14 @@ final Provider<LocalHistoryRepository> localHistoryRepositoryProvider =
       (ref) => LocalHistoryRepository(ref.watch(sharedPreferencesProvider)),
     );
 
-/// On-device record of the favourite folders played from.
-final Provider<LocalRecentFoldersRepository>
-localRecentFoldersRepositoryProvider = Provider<LocalRecentFoldersRepository>(
-  (ref) => LocalRecentFoldersRepository(ref.watch(sharedPreferencesProvider)),
-);
+/// On-device record of the playlists played from.
+final Provider<LocalRecentPlaylistsRepository>
+localRecentPlaylistsRepositoryProvider =
+    Provider<LocalRecentPlaylistsRepository>(
+      (ref) => LocalRecentPlaylistsRepository(
+        ref.watch(sharedPreferencesProvider),
+      ),
+    );
 
 /// On-device playlists, including the built-in 我喜欢的音乐.
 final Provider<LocalPlaylistRepository> localPlaylistRepositoryProvider =

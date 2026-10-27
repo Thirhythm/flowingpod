@@ -1,8 +1,8 @@
-import 'package:flowingpod/core/models/fav_folder.dart';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/paged_result.dart';
 import 'package:flowingpod/core/models/play_mode.dart';
 import 'package:flowingpod/core/models/player_state.dart';
+import 'package:flowingpod/core/models/playlist_ref.dart';
 import 'package:flowingpod/features/library/playlist_detail_page.dart';
 import 'package:flowingpod/state/auth_controller.dart';
 import 'package:flowingpod/state/library_controllers.dart';
@@ -111,9 +111,14 @@ void main() {
   testWidgets('a favourite folder keeps the player bar and hides no content', (
     tester,
   ) async {
-    const folder = FavFolder(id: 1, title: '我的收藏夹', mediaCount: 1);
+    const playlist = PlaylistRef(
+      source: PlaylistSource.bilibili,
+      id: '1',
+      title: '我的收藏夹',
+      count: 1,
+    );
     await tester.pumpWidget(
-      await _wrap(const FolderDetailPage(folder: folder)),
+      await _wrap(const PlaylistDetailPage(playlist: playlist)),
     );
     await tester.pumpAndSettle();
 

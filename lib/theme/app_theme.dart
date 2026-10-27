@@ -1,9 +1,9 @@
 import 'package:flowingpod/core/models/app_theme_mode.dart';
 import 'package:flutter/material.dart';
 
-/// Material 3 theme built around Bilibili's brand pink.
+/// Material 3 theme built around a blue brand seed.
 abstract final class AppTheme {
-  static const Color seed = Color(0xFFFB7299);
+  static const Color seed = Color(0xFF2196F3);
 
   static ThemeData light({ColorScheme? colorScheme}) =>
       _build(Brightness.light, colorScheme);
