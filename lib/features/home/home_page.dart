@@ -72,13 +72,13 @@ class _RecentPlaylistCard extends ConsumerWidget {
 
   final RecentPlaylist playlist;
 
-  String get _countLabel => playlist.source == PlaylistSource.bilibili
-      ? '${playlist.count} 个内容'
-      : '${playlist.count} 首';
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final count = ref.watch(recentPlaylistCountProvider(playlist));
+    final countLabel = playlist.source == PlaylistSource.bilibili
+        ? '$count 个内容'
+        : '$count 首';
     return SizedBox(
       width: coverWidth,
       child: InkWell(
@@ -109,7 +109,7 @@ class _RecentPlaylistCard extends ConsumerWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              _countLabel,
+              countLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(

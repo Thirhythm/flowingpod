@@ -42,7 +42,6 @@ abstract final class BiliEndpoints {
 
   // --- History ------------------------------------------------------------
   static const String historyCursor = '/x/web-interface/history/cursor';
-  static const String historyReport = '/x/v2/history/report';
   static const String historyDelete = '/x/v2/history/delete';
   static const String historyClear = '/x/v2/history/clear';
 

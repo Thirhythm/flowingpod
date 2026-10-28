@@ -3,7 +3,6 @@ import 'package:flowingpod/core/api/bili_client.dart';
 import 'package:flowingpod/core/api/bili_endpoints.dart';
 import 'package:flowingpod/core/models/history_entry.dart';
 import 'package:flowingpod/core/models/json_utils.dart';
-import 'package:flowingpod/core/models/media_track.dart';
 
 /// Infinite-scroll cursor for the history list.
 class HistoryCursor {
@@ -71,24 +70,6 @@ class HistoryRepository {
       nextCursor: nextCursor,
       hasMore: rawList.length >= size && !nextCursor.isStart,
     );
-  }
-
-  /// Reports that [track] has been watched, adding it to the cloud history.
-  ///
-  /// [progress] is the playback position in seconds; the account's history
-  /// list is what the library shows while signed in.
-  Future<void> reportProgress({
-    required MediaTrack track,
-    Duration progress = Duration.zero,
-  }) async {
-    if (track.aid <= 0 || track.cid <= 0) return;
-    await _client.postForm(BiliEndpoints.historyReport, {
-      'aid': track.aid,
-      'cid': track.cid,
-      'progress': progress.inSeconds,
-      'platform': 'android',
-      'csrf': _csrf(),
-    });
   }
 
   /// Deletes a single entry. [HistoryEntry.deleteKid] must be available.

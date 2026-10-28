@@ -1,9 +1,12 @@
+import 'package:flowingpod/core/models/fav_folder.dart';
+import 'package:flowingpod/core/models/local_playlist.dart';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/paged_result.dart';
 import 'package:flowingpod/core/models/player_state.dart';
 import 'package:flowingpod/core/models/playlist_ref.dart';
 import 'package:flowingpod/core/models/recent_playlist.dart';
 import 'package:flowingpod/data/repositories/local_history_repository.dart';
+import 'package:flowingpod/data/repositories/local_playlist_repository.dart';
 import 'package:flowingpod/data/repositories/local_recent_playlists_repository.dart';
 import 'package:flowingpod/features/home/home_page.dart';
 import 'package:flowingpod/features/library/playlist_detail_page.dart';
@@ -70,6 +73,13 @@ class _FakeFavMedia extends FavMediaController {
       const PagedResult(items: [_folderTrack], page: 1, hasMore: false);
 }
 
+/// Serves a folder whose total has moved on since it was recorded.
+class _FakeFolders extends FavFoldersController {
+  @override
+  Future<List<FavFolder>> build() async =>
+      const [FavFolder(id: 7, title: '深夜电台', mediaCount: 5)];
+}
+
 Future<SharedPreferences> _seedPrefs({bool withFolder = true}) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
@@ -126,6 +136,55 @@ void main() {
 
     expect(_horizontalStrips(), findsNothing);
     expect(find.text(_played.title), findsOneWidget);
+  });
+
+  testWidgets('a folder shortcut count follows the folder total', (
+    tester,
+  ) async {
+    final prefs = await _seedPrefs();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authControllerProvider.overrideWith(_SignedOutAuth.new),
+          playerStateProvider.overrideWith(_IdlePlayer.new),
+          favFoldersProvider.overrideWith(_FakeFolders.new),
+          favMediaProvider(
+            _folder.toRef().numericId,
+          ).overrideWith(() => _FakeFavMedia(_folder.toRef().numericId)),
+        ],
+        child: const MaterialApp(home: HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('5 个内容'), findsOneWidget);
+    expect(find.text('3 个内容'), findsNothing);
+  });
+
+  testWidgets('a local shortcut count follows the playlist total', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await LocalPlaylistRepository(
+      prefs,
+    ).addTracks(LocalPlaylist.likedId, const [_played]);
+    await LocalRecentPlaylistsRepository(prefs).record(
+      const RecentPlaylist(
+        source: PlaylistSource.local,
+        id: LocalPlaylist.likedId,
+        title: LocalPlaylist.likedName,
+        cover: '',
+        count: 9,
+      ),
+    );
+
+    await tester.pumpWidget(_wrap(prefs));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 首'), findsOneWidget);
+    expect(find.text('9 首'), findsNothing);
   });
 
   testWidgets('an empty history keeps its hint', (tester) async {

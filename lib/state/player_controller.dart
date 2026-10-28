@@ -1,12 +1,9 @@
 import 'dart:async';
 
-import 'package:flowingpod/core/api/api_exception.dart';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/play_mode.dart';
 import 'package:flowingpod/core/models/player_state.dart';
 import 'package:flowingpod/data/services/player_service.dart';
-import 'package:flowingpod/state/auth_controller.dart';
-import 'package:flowingpod/state/library_controllers.dart';
 import 'package:flowingpod/state/local_history_controller.dart';
 import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,29 +51,12 @@ class PlayerController extends Notifier<PlayerState> {
   }
 
   /// Stores the played [track] in the on-device history, which is what the
-  /// home page's 最近播放 is built from, and reports it to the Bilibili account
-  /// as well when signed in.
+  /// home page's 最近播放 is built from.
   ///
-  /// The local record is written in both cases on purpose: the home page always
-  /// shows the tracks played in this app, signed in or not.
+  /// The Bilibili account is deliberately left out of this: play records are
+  /// kept on the device only and never reported upstream.
   Future<void> _recordHistory(MediaTrack track) async {
-    final signedIn = ref.read(authControllerProvider).isLoggedIn;
-    final localHistory = ref.read(localHistoryProvider.notifier);
-    // Only Bilibili videos belong to the Bilibili watch history.
-    final cloudHistory = signedIn && !track.isNetease
-        ? ref.read(historyRepositoryProvider)
-        : null;
-
-    await localHistory.record(track);
-    if (cloudHistory == null) return;
-
-    try {
-      await cloudHistory.reportProgress(track: track);
-      if (ref.mounted) ref.invalidate(historyProvider);
-    } on BiliApiException {
-      // Reporting to the cloud is best-effort: the local record above already
-      // captured the playback.
-    }
+    await ref.read(localHistoryProvider.notifier).record(track);
   }
 
   /// Plays an explicit list, e.g. every item of a favourite folder.
