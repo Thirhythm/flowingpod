@@ -21,6 +21,7 @@ class MediaTrack {
     this.page = 1,
     this.partTitle,
     this.playCount = 0,
+    this.vip = false,
   });
 
   final TrackSource source;
@@ -43,6 +44,9 @@ class MediaTrack {
   final String? partTitle;
 
   final int playCount;
+
+  /// NetEase VIP-only song (`fee == 1`); `false` for Bilibili tracks.
+  final bool vip;
 
   bool get isNetease => source == TrackSource.netease;
 
@@ -82,6 +86,7 @@ class MediaTrack {
     page: JsonUtils.integer(json['page'], fallback: 1),
     partTitle: JsonUtils.nullableString(json['partTitle']),
     playCount: JsonUtils.integer(json['playCount']),
+    vip: json['vip'] == true,
   );
 
   Map<String, dynamic> toJson() => {
@@ -98,6 +103,7 @@ class MediaTrack {
     'page': page,
     'partTitle': partTitle,
     'playCount': playCount,
+    'vip': vip,
   };
 
   MediaTrack copyWith({
@@ -114,6 +120,7 @@ class MediaTrack {
     int? page,
     String? partTitle,
     int? playCount,
+    bool? vip,
   }) => MediaTrack(
     source: source ?? this.source,
     bvid: bvid ?? this.bvid,
@@ -128,6 +135,7 @@ class MediaTrack {
     page: page ?? this.page,
     partTitle: partTitle ?? this.partTitle,
     playCount: playCount ?? this.playCount,
+    vip: vip ?? this.vip,
   );
 
   @override

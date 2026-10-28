@@ -46,6 +46,19 @@ class _FakePlayer extends PlayerController {
   );
 }
 
+/// The [TickerMode] the marquee itself is driven by (its nearest ancestor).
+bool _marqueeTickerEnabled(WidgetTester tester) =>
+    (find
+                .ancestor(
+                  of: find.byType(Marquee),
+                  matching: find.byType(TickerMode),
+                )
+                .evaluate()
+                .first
+                .widget
+            as TickerMode)
+        .enabled;
+
 /// Hosts [MarqueeText] inside a fixed width so overflow is deterministic.
 Widget _hostText(String text, {double width = 200}) => MaterialApp(
   home: Scaffold(
@@ -127,6 +140,53 @@ void main() {
       expect(find.byType(Marquee), findsNothing);
       expect(find.text(_longTitle), findsOneWidget);
     });
+
+    testWidgets('stops scrolling when an ancestor TickerMode is disabled', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 200,
+                child: TickerMode(
+                  enabled: false,
+                  child: MarqueeText(text: _longTitle),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      // Flush the marquee's zero delay before it starts its scroll animation.
+      await tester.pump(const Duration(milliseconds: 10));
+
+      expect(find.byType(Marquee), findsOneWidget);
+      expect(_marqueeTickerEnabled(tester), isFalse);
+    });
+
+    testWidgets('pauses while the app is in the background', (tester) async {
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+
+      await tester.pumpWidget(_hostText(_longTitle));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(_marqueeTickerEnabled(tester), isTrue);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(_marqueeTickerEnabled(tester), isFalse);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(_marqueeTickerEnabled(tester), isTrue);
+    });
   });
 
   group('PlayerPage', () {
@@ -139,11 +199,7 @@ void main() {
       final artist = tester.getRect(find.text('作者名称'));
 
       expect(title.left, artist.left, reason: '名称与作者应左对齐');
-      expect(
-        title.left,
-        lessThan(pageWidth / 3),
-        reason: '名称应位于页面左侧而不是居中',
-      );
+      expect(title.left, lessThan(pageWidth / 3), reason: '名称应位于页面左侧而不是居中');
     });
 
     testWidgets('scrolls a long song name', (tester) async {

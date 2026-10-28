@@ -103,9 +103,12 @@ class NeteaseQrViewState {
   final String? message;
 }
 
+// Auto-disposed so the 2 second poll stops as soon as the login page is gone;
+// otherwise the timer would keep hitting the QR API for the whole session.
 final NotifierProvider<NeteaseQrController, NeteaseQrViewState>
 neteaseQrProvider = NotifierProvider<NeteaseQrController, NeteaseQrViewState>(
   NeteaseQrController.new,
+  isAutoDispose: true,
 );
 
 class NeteaseQrController extends Notifier<NeteaseQrViewState> {
@@ -124,7 +127,9 @@ class NeteaseQrController extends Notifier<NeteaseQrViewState> {
   Future<void> start() async {
     _timer?.cancel();
     _polling = false;
-    if (ref.mounted) state = const NeteaseQrViewState();
+    // The provider is auto-disposed; the page may be gone before this runs.
+    if (!ref.mounted) return;
+    state = const NeteaseQrViewState();
     try {
       final key = await ref.read(neteaseRepositoryProvider).createQrKey();
       final url = await ref.read(neteaseRepositoryProvider).createQrUrl(key);

@@ -2,6 +2,7 @@ import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/utils/formatters.dart';
 import 'package:flowingpod/widgets/cover_image.dart';
 import 'package:flowingpod/widgets/track_source_badge.dart';
+import 'package:flowingpod/widgets/track_vip_badge.dart';
 import 'package:flutter/material.dart';
 
 /// Row used by every list that shows playable content.
@@ -58,6 +59,10 @@ class TrackTile extends StatelessWidget {
         children: [
           if (showSource) ...[
             TrackSourceBadge(source: track.source),
+            const SizedBox(width: 6),
+          ],
+          if (track.vip) ...[
+            const TrackVipBadge(),
             const SizedBox(width: 6),
           ],
           Flexible(

@@ -326,9 +326,12 @@ class QrLoginViewState {
   final String? message;
 }
 
+// Auto-disposed so the 2 second poll stops as soon as the login page is gone;
+// otherwise the timer would keep hitting the passport API for the whole session.
 final NotifierProvider<QrLoginController, QrLoginViewState> qrLoginProvider =
     NotifierProvider<QrLoginController, QrLoginViewState>(
       QrLoginController.new,
+      isAutoDispose: true,
     );
 
 /// Drives the QR code login: creates a code and polls until it is confirmed.
@@ -350,7 +353,9 @@ class QrLoginController extends Notifier<QrLoginViewState> {
   Future<void> start() async {
     _timer?.cancel();
     _polling = false;
-    if (ref.mounted) state = const QrLoginViewState();
+    // The provider is auto-disposed; the page may be gone before this runs.
+    if (!ref.mounted) return;
+    state = const QrLoginViewState();
     try {
       final session = await ref.read(authRepositoryProvider).createQrSession();
       _key = session.key;

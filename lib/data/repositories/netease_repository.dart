@@ -509,6 +509,7 @@ class NeteaseRepository {
                 .join(' / '),
       cover: JsonUtils.string(album['picUrl'] ?? song['picUrl']),
       duration: duration,
+      vip: JsonUtils.integer(song['fee']) == 1,
     );
   }
 }

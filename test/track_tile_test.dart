@@ -4,17 +4,21 @@ import 'package:flowingpod/widgets/track_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-MediaTrack _track({required TrackSource source, String artist = 'UP主'}) =>
-    MediaTrack(
-      source: source,
-      bvid: 'BV1',
-      aid: 1,
-      cid: 1,
-      songId: source == TrackSource.netease ? 1 : 0,
-      title: '曲目',
-      artist: artist,
-      cover: '',
-    );
+MediaTrack _track({
+  required TrackSource source,
+  String artist = 'UP主',
+  bool vip = false,
+}) => MediaTrack(
+  source: source,
+  bvid: 'BV1',
+  aid: 1,
+  cid: 1,
+  songId: source == TrackSource.netease ? 1 : 0,
+  title: '曲目',
+  artist: artist,
+  cover: '',
+  vip: vip,
+);
 
 Widget _host(MediaTrack track, {bool showSource = true}) => MaterialApp(
   home: Scaffold(
@@ -45,6 +49,20 @@ void main() {
     );
 
     expect(find.text('哔哩哔哩'), findsNothing);
+  });
+
+  testWidgets('marks a NetEase VIP track', (tester) async {
+    await tester.pumpWidget(
+      _host(_track(source: TrackSource.netease, vip: true)),
+    );
+
+    expect(find.text('VIP'), findsOneWidget);
+  });
+
+  testWidgets('shows no VIP badge for a free track', (tester) async {
+    await tester.pumpWidget(_host(_track(source: TrackSource.netease)));
+
+    expect(find.text('VIP'), findsNothing);
   });
 
   testWidgets('long artist names ellipsise instead of overflowing', (

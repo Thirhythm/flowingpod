@@ -5,6 +5,7 @@ import 'package:flowingpod/state/player_controller.dart';
 import 'package:flowingpod/widgets/cover_image.dart';
 import 'package:flowingpod/widgets/play_mode_button.dart';
 import 'package:flowingpod/widgets/track_source_badge.dart';
+import 'package:flowingpod/widgets/track_vip_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -215,6 +216,10 @@ class _QueueRow extends StatelessWidget {
           children: [
             TrackSourceBadge(source: track.source),
             const SizedBox(width: 6),
+            if (track.vip) ...[
+              const TrackVipBadge(),
+              const SizedBox(width: 6),
+            ],
             Flexible(
               child: Text(
                 track.artist,

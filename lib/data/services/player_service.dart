@@ -98,6 +98,11 @@ class BiliAudioService extends BaseAudioHandler
       androidAudioEffects: [_equalizer, _loudnessEnhancer],
     ),
     audioLoadConfiguration: _loadConfiguration,
+    // Send the Referer/User-Agent headers natively through ExoPlayer. The
+    // default routes every audio byte through just_audio's Dart-side HTTP
+    // proxy, which keeps the isolate busy for the whole stream and drains the
+    // battery.
+    useProxyForRequestHeaders: false,
   );
 
   /// Equalizer bands, filled once the platform reports its band layout.

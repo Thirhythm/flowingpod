@@ -79,18 +79,21 @@ void main() {
         artist: '歌手',
         cover: '',
         duration: Duration(seconds: 200),
+        vip: true,
       );
 
       expect(song.id, 'netease:42');
       expect(song.partKey, 'netease:42');
       expect(song.isResolved, isTrue);
       expect(song.canFavorite, isTrue);
+      expect(song.vip, isTrue);
 
       final restored = MediaTrack.fromJson(song.toJson());
       expect(restored, song);
       expect(restored.source, TrackSource.netease);
       expect(restored.songId, 42);
       expect(restored.isNetease, isTrue);
+      expect(restored.vip, isTrue);
     });
   });
 

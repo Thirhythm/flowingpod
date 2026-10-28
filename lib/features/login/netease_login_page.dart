@@ -36,7 +36,9 @@ class _QrLoginViewState extends ConsumerState<_QrLoginView> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(neteaseQrProvider.notifier).start());
+    Future.microtask(() {
+      if (mounted) ref.read(neteaseQrProvider.notifier).start();
+    });
   }
 
   @override
