@@ -712,13 +712,10 @@ class BiliAudioService extends BaseAudioHandler
 
   Future<void> _playPrevious() async {
     if (_queue.isEmpty) return;
-    // Matches the usual music player behaviour: restart when past 3 seconds.
-    if (_player.position > const Duration(seconds: 3)) {
-      await _player.seek(Duration.zero);
-      return;
-    }
     final index = _previousIndex();
     if (index == null || index == _currentIndex) {
+      // Nothing plays before the current entry (start of a sequential queue or
+      // a one-entry queue), so restart it instead of doing nothing.
       await _player.seek(Duration.zero);
       return;
     }
