@@ -1,11 +1,14 @@
 import 'dart:math' as math;
 
+import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/utils/formatters.dart';
 import 'package:flowingpod/state/library_controllers.dart';
 import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/state/settings_controller.dart';
 import 'package:flowingpod/widgets/cover_image.dart';
 import 'package:flowingpod/widgets/favorite_sheet.dart';
 import 'package:flowingpod/widgets/marquee_text.dart';
+import 'package:flowingpod/widgets/netease_quality_sheet.dart';
 import 'package:flowingpod/widgets/play_mode_button.dart';
 import 'package:flowingpod/widgets/playlist_sheet.dart';
 import 'package:flutter/material.dart';
@@ -20,27 +23,9 @@ class PlayerPage extends ConsumerWidget {
     final state = ref.watch(playerStateProvider);
     final track = state.currentTrack;
     final controller = ref.read(playerStateProvider.notifier);
-    final favoured = track == null
-        ? false
-        : ref.watch(trackFavouredProvider(track));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('正在播放'),
-        actions: [
-          if (track != null && track.canFavorite)
-            IconButton(
-              tooltip: favoured ? '已收藏' : '收藏',
-              icon: Icon(
-                favoured
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                color: favoured ? Theme.of(context).colorScheme.primary : null,
-              ),
-              onPressed: () => FavoriteSheet.show(context, ref, track: track),
-            ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('正在播放')),
       body: track == null
           ? const Center(child: Text('播放列表为空'))
           : SafeArea(
@@ -111,6 +96,7 @@ class PlayerPage extends ConsumerWidget {
                             ),
                           ),
                         ),
+                      _PlayerActionBar(track: track),
                       _SeekBar(duration: state.duration),
                       const SizedBox(height: 8),
                       _Controls(
@@ -126,6 +112,49 @@ class PlayerPage extends ConsumerWidget {
                 },
               ),
             ),
+    );
+  }
+}
+
+/// Secondary actions shown right above the progress bar: the favourite toggle
+/// and, for NetEase songs, the sound-quality picker.
+class _PlayerActionBar extends ConsumerWidget {
+  const _PlayerActionBar({required this.track});
+
+  final MediaTrack track;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favoured = ref.watch(trackFavouredProvider(track));
+    final quality = ref.watch(neteaseQualityProvider);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        // NetEase songs split the two actions, Bilibili entries keep the lone
+        // favourite next to the edge.
+        mainAxisAlignment: track.isNetease
+            ? MainAxisAlignment.spaceBetween
+            : MainAxisAlignment.end,
+        children: [
+          if (track.isNetease)
+            TextButton.icon(
+              onPressed: () => NeteaseQualitySheet.show(context, track: track),
+              icon: const Icon(Icons.high_quality_rounded, size: 20),
+              label: Text(quality.label),
+            ),
+          if (track.canFavorite)
+            IconButton(
+              tooltip: favoured ? '已收藏' : '收藏',
+              icon: Icon(
+                favoured
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                color: favoured ? Theme.of(context).colorScheme.primary : null,
+              ),
+              onPressed: () => FavoriteSheet.show(context, ref, track: track),
+            ),
+        ],
+      ),
     );
   }
 }

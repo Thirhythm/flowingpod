@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/play_mode.dart';
 import 'package:flowingpod/core/models/player_state.dart';
+import 'package:flowingpod/core/models/track_source.dart';
 import 'package:flowingpod/features/player/player_page.dart';
 import 'package:flowingpod/state/auth_controller.dart';
 import 'package:flowingpod/state/player_controller.dart';
@@ -18,6 +19,15 @@ const _track = MediaTrack(
   cid: 2,
   title: '正在播放的歌曲',
   artist: 'UP主',
+  cover: '',
+  duration: Duration(minutes: 3),
+);
+
+const _neteaseTrack = MediaTrack(
+  source: TrackSource.netease,
+  songId: 123,
+  title: '网易云歌曲',
+  artist: '歌手',
   cover: '',
   duration: Duration(minutes: 3),
 );
@@ -41,9 +51,22 @@ class _FakePlayer extends PlayerController {
   );
 }
 
+/// Reports [_neteaseTrack] as the current queue entry.
+class _FakeNeteasePlayer extends PlayerController {
+  @override
+  PlayerState build() => const PlayerState(
+    queue: [_neteaseTrack],
+    currentIndex: 0,
+    mode: PlayMode.listLoop,
+    playing: true,
+    duration: Duration(minutes: 3),
+  );
+}
+
 Future<void> _pumpPlayer(
   WidgetTester tester, {
   List<MediaTrack> localFavorites = const [],
+  PlayerController Function()? player,
 }) async {
   SharedPreferences.setMockInitialValues({
     if (localFavorites.isNotEmpty)
@@ -58,7 +81,7 @@ Future<void> _pumpPlayer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
         authControllerProvider.overrideWith(_SignedOutAuth.new),
-        playerStateProvider.overrideWith(_FakePlayer.new),
+        playerStateProvider.overrideWith(player ?? _FakePlayer.new),
         playbackPositionProvider.overrideWithValue(
           const AsyncValue.data(Duration(seconds: 30)),
         ),
@@ -107,5 +130,37 @@ void main() {
     );
 
     expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+  });
+
+  testWidgets('the favourite button sits inside the body, not the app bar', (
+    tester,
+  ) async {
+    await _pumpPlayer(tester);
+
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byIcon(Icons.favorite_border_rounded),
+      ),
+      findsNothing,
+    );
+    expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+  });
+
+  testWidgets('a NetEase song offers the sound quality picker', (
+    tester,
+  ) async {
+    await _pumpPlayer(tester, player: _FakeNeteasePlayer.new);
+
+    expect(find.byIcon(Icons.high_quality_rounded), findsOneWidget);
+    expect(find.text('极高'), findsOneWidget);
+  });
+
+  testWidgets('a Bilibili track hides the sound quality picker', (
+    tester,
+  ) async {
+    await _pumpPlayer(tester);
+
+    expect(find.byIcon(Icons.high_quality_rounded), findsNothing);
   });
 }

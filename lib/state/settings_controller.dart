@@ -1,4 +1,5 @@
 import 'package:flowingpod/core/models/app_theme_mode.dart';
+import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -45,5 +46,24 @@ class DynamicColorController extends Notifier<bool> {
   Future<void> setEnabled(bool value) async {
     await ref.read(settingsRepositoryProvider).setDynamicColor(value);
     if (ref.mounted) state = value;
+  }
+}
+
+/// Remembered sound quality for NetEase songs, applied when a stream is
+/// resolved and shown in the player's quality menu.
+final NotifierProvider<NeteaseQualityController, NeteaseQuality>
+neteaseQualityProvider =
+    NotifierProvider<NeteaseQualityController, NeteaseQuality>(
+      NeteaseQualityController.new,
+    );
+
+class NeteaseQualityController extends Notifier<NeteaseQuality> {
+  @override
+  NeteaseQuality build() =>
+      ref.watch(settingsRepositoryProvider).loadNeteaseQuality();
+
+  Future<void> setQuality(NeteaseQuality quality) async {
+    await ref.read(settingsRepositoryProvider).setNeteaseQuality(quality);
+    if (ref.mounted) state = quality;
   }
 }

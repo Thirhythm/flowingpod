@@ -1,6 +1,7 @@
 import 'package:flowingpod/core/models/audio_stream.dart';
 import 'package:flowingpod/core/models/history_entry.dart';
 import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/core/models/play_mode.dart';
 import 'package:flowingpod/core/models/track_source.dart';
 import 'package:flowingpod/core/models/video_detail.dart';
@@ -240,6 +241,32 @@ void main() {
       expect(PlayMode.listLoop.next, PlayMode.singleLoop);
       expect(PlayMode.singleLoop.next, PlayMode.shuffle);
       expect(PlayMode.shuffle.next, PlayMode.sequential);
+    });
+  });
+
+  group('NeteaseQuality', () {
+    test('restores an unknown or missing preference to 极高', () {
+      expect(NeteaseQuality.fromStorage('lossless'), NeteaseQuality.lossless);
+      expect(NeteaseQuality.fromStorage('exhigh'), NeteaseQuality.exhigh);
+      expect(NeteaseQuality.fromStorage(null), NeteaseQuality.fallback);
+      expect(NeteaseQuality.fromStorage('bogus'), NeteaseQuality.fallback);
+    });
+
+    test('maps API level strings and ignores unknown ones', () {
+      expect(NeteaseQuality.fromApiValue('hires'), NeteaseQuality.hires);
+      expect(NeteaseQuality.fromApiValue('dolby'), isNull);
+    });
+
+    test('ranks the ladder from 标准 up to 臻音全景声', () {
+      expect(NeteaseQuality.standard.index, 0);
+      expect(
+        NeteaseQuality.values.map((quality) => quality.index),
+        orderedEquals(List.generate(NeteaseQuality.values.length, (i) => i)),
+      );
+      expect(
+        NeteaseQuality.vivid.index,
+        greaterThan(NeteaseQuality.hires.index),
+      );
     });
   });
 }

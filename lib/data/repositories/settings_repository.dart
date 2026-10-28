@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flowingpod/core/models/app_theme_mode.dart';
 import 'package:flowingpod/core/models/audio_effect_settings.dart';
 import 'package:flowingpod/core/models/json_utils.dart';
+import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// App preferences that are not tied to a Bilibili session.
@@ -48,4 +49,11 @@ class SettingsRepository {
 
   Future<void> setAudioEffects(AudioEffectSettings settings) =>
       _prefs.setString(_audioEffectsKey, jsonEncode(settings.toJson()));
+
+  /// Sound quality to request for NetEase songs.
+  NeteaseQuality loadNeteaseQuality() =>
+      NeteaseQuality.fromStorage(_prefs.getString(NeteaseQuality.storageKey));
+
+  Future<void> setNeteaseQuality(NeteaseQuality quality) =>
+      _prefs.setString(NeteaseQuality.storageKey, quality.name);
 }

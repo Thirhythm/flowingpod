@@ -21,7 +21,8 @@ abstract final class NeteaseEndpoints {
   static const String searchSuggest = '/search/suggest/web';
 
   // --- Songs --------------------------------------------------------------
-  static const String songUrl = '/song/enhance/player/url';
+  /// Player URL endpoint selected by a named `level` instead of a bitrate.
+  static const String songUrlV1 = '/song/enhance/player/url/v1';
   static const String songDetail = '/v3/song/detail';
   static const String like = '/radio/like';
 

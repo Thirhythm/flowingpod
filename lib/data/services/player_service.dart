@@ -9,6 +9,7 @@ import 'package:flowingpod/core/api/bili_client.dart';
 import 'package:flowingpod/core/models/equalizer_capabilities.dart';
 import 'package:flowingpod/core/models/equalizer_preset.dart';
 import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/core/models/play_mode.dart';
 import 'package:flowingpod/core/models/player_state.dart';
 import 'package:flowingpod/core/utils/image_url.dart';
@@ -603,13 +604,7 @@ class BiliAudioService extends BaseAudioHandler
       final resolved = _queue[_currentIndex];
 
       if (resolved.isNetease) {
-        final url = await _netease.fetchSongUrl(resolved.songId);
-        if (url == null || url.isEmpty) {
-          throw const BiliApiException(
-            code: -1,
-            message: '该歌曲暂时无法播放，可能需要网易云会员',
-          );
-        }
+        final url = await _resolveNeteaseUrl(resolved.songId);
         final uri = Uri.tryParse(url);
         if (uri == null) {
           throw const BiliApiException(code: -1, message: '音频地址无效');
@@ -658,6 +653,47 @@ class BiliAudioService extends BaseAudioHandler
       _error = '播放失败：$error';
       _emit();
     }
+  }
+
+  /// Resolves the stream for a NetEase song at the remembered quality.
+  ///
+  /// When the preferred level is not available for the song the API downgrades
+  /// the response, in which case playback falls back to 极高 as a predictable
+  /// default instead of silently drifting to whatever was served.
+  Future<String> _resolveNeteaseUrl(int songId) async {
+    final preferred = NeteaseQuality.fromStorage(
+      _prefs.getString(NeteaseQuality.storageKey),
+    );
+    var result = await _netease.fetchSongUrl(songId, quality: preferred);
+    final served = result?.level;
+    if (result != null &&
+        preferred != NeteaseQuality.fallback &&
+        (served == null || served.index < preferred.index)) {
+      final fallback = await _netease.fetchSongUrl(
+        songId,
+        quality: NeteaseQuality.fallback,
+      );
+      if (fallback != null) result = fallback;
+    }
+    if (result == null || result.url.isEmpty) {
+      throw const BiliApiException(
+        code: -1,
+        message: '该歌曲暂时无法播放，可能需要网易云会员',
+      );
+    }
+    return result.url;
+  }
+
+  /// Reloads the current entry, e.g. after the sound quality changed, keeping
+  /// the playback position and play/pause state.
+  Future<void> reloadCurrent() async {
+    if (currentTrack == null) return;
+    final wasPlaying = _player.playing;
+    final position = _player.position;
+    await _loadCurrent(autoplay: false);
+    if (_error != null) return;
+    if (position > Duration.zero) await _player.seek(position);
+    if (wasPlaying) await _player.play();
   }
 
   /// Expands a queue entry that only carries a `bvid` (search / favourite

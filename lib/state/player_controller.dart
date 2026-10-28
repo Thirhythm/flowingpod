@@ -103,5 +103,8 @@ class PlayerController extends Notifier<PlayerState> {
 
   Future<void> removeAt(int index) => _service.removeFromQueue(index);
 
+  /// Reloads the current entry, used after the NetEase sound quality changed.
+  Future<void> reloadForNeteaseQuality() => _service.reloadCurrent();
+
   Future<void> clear() => _service.clearQueue();
 }

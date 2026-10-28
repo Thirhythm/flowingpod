@@ -6,6 +6,7 @@ import 'package:flowingpod/core/api/netease_endpoints.dart';
 import 'package:flowingpod/core/models/json_utils.dart';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/netease_playlist.dart';
+import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/core/models/netease_user.dart';
 import 'package:flowingpod/core/models/paged_result.dart';
 import 'package:flowingpod/core/models/track_source.dart';
@@ -17,6 +18,16 @@ class NeteaseQrResult {
 
   final NeteaseQrStatus status;
   final String? message;
+}
+
+/// A resolved stream together with the quality the backend actually served.
+class NeteaseSongUrl {
+  const NeteaseSongUrl({required this.url, required this.level});
+
+  final String url;
+
+  /// Quality delivered by the API; `null` when the value is not recognised.
+  final NeteaseQuality? level;
 }
 
 /// NetEase account, search, song and playlist operations.
@@ -224,25 +235,60 @@ class NeteaseRepository {
 
   // --- Songs --------------------------------------------------------------
 
-  /// Resolves a playable URL from the legacy player endpoint.
-  Future<String?> fetchSongUrl(int songId) async =>
-      await _fetchSongUrl(songId, bitrate: 999000) ??
-      await _fetchSongUrl(songId, bitrate: 128000);
-
-  Future<String?> _fetchSongUrl(int songId, {required int bitrate}) async {
+  /// Resolves a playable URL at [quality].
+  ///
+  /// The API downgrades the request when the level is not available for the
+  /// song, so the [NeteaseSongUrl.level] of the result names the quality that
+  /// was actually delivered.
+  Future<NeteaseSongUrl?> fetchSongUrl(
+    int songId, {
+    NeteaseQuality quality = NeteaseQuality.exhigh,
+  }) async {
     final response = _client.expectOk(
       await _client.request(
-        NeteaseEndpoints.songUrl,
+        NeteaseEndpoints.songUrlV1,
         data: {
           'ids': jsonEncode(['$songId']),
-          'br': bitrate,
+          'level': quality.apiValue,
+          'encodeType': 'flac',
         },
       ),
-      NeteaseEndpoints.songUrl,
+      NeteaseEndpoints.songUrlV1,
     );
     final data = JsonUtils.list(response['data']);
-    final url = data.isEmpty ? '' : JsonUtils.string(data.first['url']);
-    return url.isEmpty ? null : url;
+    if (data.isEmpty) return null;
+    final first = data.first;
+    final url = JsonUtils.string(first['url']);
+    if (url.isEmpty) return null;
+    return NeteaseSongUrl(
+      url: url,
+      level: NeteaseQuality.fromApiValue(
+        JsonUtils.string(first['level'], fallback: quality.apiValue),
+      ),
+    );
+  }
+
+  /// Levels a song can be played at, from 标准 up to the highest one the
+  /// backend reports.
+  ///
+  /// The highest level is discovered by requesting the top of the ladder: the
+  /// API answers with the best level it can deliver, so a single probe is
+  /// usually enough. Lower levels are tried only when the request itself fails.
+  Future<List<NeteaseQuality>> fetchAvailableQualities(int songId) async {
+    for (final quality in NeteaseQuality.values.reversed) {
+      try {
+        final result = await fetchSongUrl(songId, quality: quality);
+        if (result == null) continue;
+        final highest = result.level ?? quality;
+        return [
+          for (final level in NeteaseQuality.values)
+            if (level.index <= highest.index) level,
+        ];
+      } on BiliApiException {
+        // Unsupported levels are skipped in favour of the next one down.
+      }
+    }
+    return const [];
   }
 
   Future<void> likeSong(int songId, {required bool like}) async {
