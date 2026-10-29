@@ -341,12 +341,25 @@ class QrLoginController extends Notifier<QrLoginViewState> {
   Timer? _timer;
   String? _key;
   bool _polling = false;
+  bool _active = true;
 
   @override
   QrLoginViewState build() {
     ref.onDispose(() => _timer?.cancel());
     Future.microtask(start);
     return const QrLoginViewState();
+  }
+
+  /// Pauses the poll while the QR tab is not visible and resumes it when the
+  /// tab comes back, so a hidden login page does not keep calling the API.
+  void setActive(bool active) {
+    if (!ref.mounted || _active == active) return;
+    _active = active;
+    if (!active) {
+      _timer?.cancel();
+    } else if (_key != null) {
+      _schedulePoll();
+    }
   }
 
   /// Requests a new QR code (also used by the "refresh" button).
@@ -377,12 +390,13 @@ class QrLoginController extends Notifier<QrLoginViewState> {
 
   void _schedulePoll() {
     _timer?.cancel();
+    if (!_active) return;
     _timer = Timer(_pollInterval, _poll);
   }
 
   Future<void> _poll() async {
     final key = _key;
-    if (key == null || _polling || !ref.mounted) return;
+    if (key == null || _polling || !_active || !ref.mounted) return;
     _polling = true;
     try {
       final result = await ref.read(authRepositoryProvider).pollQrSession(key);

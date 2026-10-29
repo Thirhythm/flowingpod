@@ -51,6 +51,9 @@ class NeteaseAuthController extends Notifier<NeteaseAuthState> {
   NeteaseRepository get _repository => ref.read(neteaseRepositoryProvider);
 
   Future<void> refresh() async {
+    // VIP levels can change with the account, so cached quality probes are
+    // re-evaluated for the session that is about to be loaded.
+    _repository.clearQualityCache();
     if (!_repository.isLoggedIn) {
       if (ref.mounted) state = const NeteaseAuthState(initialized: true);
       return;
@@ -117,11 +120,24 @@ class NeteaseQrController extends Notifier<NeteaseQrViewState> {
   Timer? _timer;
   String? _key;
   bool _polling = false;
+  bool _active = true;
 
   @override
   NeteaseQrViewState build() {
     ref.onDispose(() => _timer?.cancel());
     return const NeteaseQrViewState();
+  }
+
+  /// Pauses the poll while the QR tab is not visible and resumes it when the
+  /// tab comes back, so a hidden login page does not keep calling the API.
+  void setActive(bool active) {
+    if (!ref.mounted || _active == active) return;
+    _active = active;
+    if (!active) {
+      _timer?.cancel();
+    } else if (_key != null) {
+      _schedulePoll();
+    }
   }
 
   Future<void> start() async {
@@ -152,12 +168,13 @@ class NeteaseQrController extends Notifier<NeteaseQrViewState> {
 
   void _schedulePoll() {
     _timer?.cancel();
+    if (!_active) return;
     _timer = Timer(_pollInterval, _poll);
   }
 
   Future<void> _poll() async {
     final key = _key;
-    if (key == null || _polling || !ref.mounted) return;
+    if (key == null || _polling || !_active || !ref.mounted) return;
     _polling = true;
     try {
       final result = await ref.read(neteaseRepositoryProvider).checkQr(key);

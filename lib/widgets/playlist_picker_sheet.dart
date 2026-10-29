@@ -55,6 +55,10 @@ Future<Set<PlaylistSelection>?> showPlaylistPickerSheet(
   ),
 );
 
+/// Adds to Bilibili folders without firing one request per selected track at
+/// full speed, which trips the service's rate limiter for large selections.
+const int _maxConcurrentWrites = 4;
+
 /// Applies the picker result: adds to newly checked playlists, removes the
 /// track from local playlists that were unchecked, then reports failures.
 Future<String?> applyPlaylistSelections(
@@ -87,17 +91,24 @@ Future<String?> applyPlaylistSelections(
     }..remove(0);
     if (biliFolders.isNotEmpty) {
       final repository = ref.read(favRepositoryProvider);
-      for (final track in tracks) {
-        if (track.aid <= 0) continue;
-        await repository.dealResources(
-          aid: track.aid,
-          addTo: biliFolders.toList(),
-        );
-      }
+      final targets = [
+        for (final track in tracks)
+          if (track.aid > 0) track,
+      ];
+      final folderIds = biliFolders.toList();
+      final errors = <BiliApiException>[];
+      await _forEachConcurrent(targets, _maxConcurrentWrites, (track) async {
+        try {
+          await repository.dealResources(aid: track.aid, addTo: folderIds);
+        } on BiliApiException catch (error) {
+          errors.add(error);
+        }
+      });
       ref.invalidate(favFoldersProvider);
       for (final folderId in biliFolders) {
         ref.invalidate(favMediaProvider(folderId));
       }
+      if (errors.isNotEmpty) throw errors.first;
     }
 
     final neteasePlaylists = {
@@ -112,19 +123,50 @@ Future<String?> applyPlaylistSelections(
       ];
       if (songIds.isNotEmpty) {
         final repository = ref.read(neteaseRepositoryProvider);
-        for (final playlistId in neteasePlaylists) {
-          await repository.addTracksToPlaylist(playlistId, songIds);
-        }
+        final errors = <BiliApiException>[];
+        await _forEachConcurrent(
+          neteasePlaylists.toList(),
+          _maxConcurrentWrites,
+          (playlistId) async {
+            try {
+              await repository.addTracksToPlaylist(playlistId, songIds);
+            } on BiliApiException catch (error) {
+              errors.add(error);
+            }
+          },
+        );
         ref.invalidate(neteasePlaylistsProvider);
         for (final playlistId in neteasePlaylists) {
           ref.invalidate(neteasePlaylistTracksProvider(playlistId));
         }
+        if (errors.isNotEmpty) throw errors.first;
       }
     }
     return null;
   } on BiliApiException catch (error) {
     return error.message;
   }
+}
+
+/// Runs [action] over [items] with at most [limit] calls in flight.
+Future<void> _forEachConcurrent<T>(
+  List<T> items,
+  int limit,
+  Future<void> Function(T item) action,
+) async {
+  if (items.isEmpty) return;
+  var next = 0;
+  Future<void> worker() async {
+    while (true) {
+      final index = next++;
+      if (index >= items.length) return;
+      await action(items[index]);
+    }
+  }
+
+  await Future.wait([
+    for (var i = 0; i < limit.clamp(1, items.length); i++) worker(),
+  ]);
 }
 
 class _PlaylistPickerSheet extends ConsumerStatefulWidget {

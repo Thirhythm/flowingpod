@@ -25,7 +25,7 @@ Future<void> main() async {
 
   // Shared by the audio service and the UI so a NetEase login is picked up by
   // playback without restarting the app.
-  final neteaseClient = NeteaseClient(preferences);
+  final neteaseClient = await NeteaseClient.create(preferences);
   final neteaseRepository = NeteaseRepository(neteaseClient);
 
   // audio_service must own the player so playback survives in the background

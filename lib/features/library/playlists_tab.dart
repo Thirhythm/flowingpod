@@ -17,11 +17,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Playlists tab of 媒体库: local playlists plus the two cloud services in
 /// collapsible sections, each shown only while signed in.
-class PlaylistsTab extends ConsumerWidget {
+///
+/// Every row is a sliver list item, so a large library only builds what is on
+/// screen; cloud sections are expanded on demand.
+class PlaylistsTab extends ConsumerStatefulWidget {
   const PlaylistsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlaylistsTab> createState() => _PlaylistsTabState();
+}
+
+class _PlaylistsTabState extends ConsumerState<PlaylistsTab> {
+  bool _biliExpanded = false;
+  bool _neteaseExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
     final local = ref.watch(localPlaylistsProvider);
     final biliLoggedIn = ref.watch(
       authControllerProvider.select((state) => state.isLoggedIn),
@@ -33,37 +44,137 @@ class PlaylistsTab extends ConsumerWidget {
     return RefreshIndicator(
       onRefresh: () =>
           _refresh(ref, bili: biliLoggedIn, netease: neteaseLoggedIn),
-      child: ListView(
+      child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 24),
-        children: [
-          SectionHeader(
-            title: '本地歌单',
-            action: IconButton(
-              tooltip: '新建本地歌单',
-              icon: const Icon(Icons.add_rounded),
-              onPressed: () => _createLocal(context, ref),
+        slivers: [
+          SliverToBoxAdapter(
+            child: SectionHeader(
+              title: '本地歌单',
+              action: IconButton(
+                tooltip: '新建本地歌单',
+                icon: const Icon(Icons.add_rounded),
+                onPressed: () => _createLocal(context, ref),
+              ),
             ),
           ),
-          for (final playlist in local) _localTile(context, ref, playlist),
+          SliverList.builder(
+            itemCount: local.length,
+            itemBuilder: (context, index) =>
+                _localTile(context, ref, local[index]),
+          ),
           if (biliLoggedIn) ...[
-            _CloudSection(
-              title: '哔哩哔哩',
-              addLabel: '新建收藏夹',
-              onAdd: () => _createBiliFolder(context, ref),
-              child: _BiliFolders(),
+            SliverToBoxAdapter(
+              child: _cloudHeader(
+                title: '哔哩哔哩',
+                addTooltip: '新建收藏夹',
+                expanded: _biliExpanded,
+                onToggle: () =>
+                    setState(() => _biliExpanded = !_biliExpanded),
+                onAdd: () => _createBiliFolder(context, ref),
+              ),
             ),
+            if (_biliExpanded) ..._biliFolderSlivers(ref),
           ],
           if (neteaseLoggedIn) ...[
-            _CloudSection(
-              title: '网易云音乐',
-              addLabel: '新建歌单',
-              onAdd: () => _createNeteasePlaylist(context, ref),
-              child: const _NeteasePlaylists(),
+            SliverToBoxAdapter(
+              child: _cloudHeader(
+                title: '网易云音乐',
+                addTooltip: '新建歌单',
+                expanded: _neteaseExpanded,
+                onToggle: () =>
+                    setState(() => _neteaseExpanded = !_neteaseExpanded),
+                onAdd: () => _createNeteasePlaylist(context, ref),
+              ),
             ),
+            if (_neteaseExpanded) ..._neteasePlaylistSlivers(ref),
           ],
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ),
+    );
+  }
+
+  Widget _cloudHeader({
+    required String title,
+    required String addTooltip,
+    required bool expanded,
+    required VoidCallback onToggle,
+    required VoidCallback onAdd,
+  }) => SectionHeader(
+    title: title,
+    action: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: addTooltip,
+          icon: const Icon(Icons.add_rounded),
+          onPressed: onAdd,
+        ),
+        IconButton(
+          tooltip: expanded ? '收起' : '展开',
+          icon: Icon(
+            expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+          ),
+          onPressed: onToggle,
+        ),
+      ],
+    ),
+  );
+
+  List<Widget> _biliFolderSlivers(WidgetRef ref) {
+    final folders = ref.watch(favFoldersProvider);
+    return folders.when(
+      loading: () => [const SliverToBoxAdapter(child: _LoadingRow())],
+      error: (error, _) => [
+        SliverToBoxAdapter(
+          child: _ErrorRow(
+            message: '收藏夹加载失败：$error',
+            onRetry: () => ref.read(favFoldersProvider.notifier).reload(),
+          ),
+        ),
+      ],
+      data: (list) {
+        if (list.isEmpty) {
+          return [
+            const SliverToBoxAdapter(child: _EmptyRow(message: '暂无收藏夹')),
+          ];
+        }
+        return [
+          SliverList.builder(
+            itemCount: list.length,
+            itemBuilder: (context, index) => _BiliTile(folder: list[index]),
+          ),
+        ];
+      },
+    );
+  }
+
+  List<Widget> _neteasePlaylistSlivers(WidgetRef ref) {
+    final playlists = ref.watch(neteasePlaylistsProvider);
+    return playlists.when(
+      loading: () => [const SliverToBoxAdapter(child: _LoadingRow())],
+      error: (error, _) => [
+        SliverToBoxAdapter(
+          child: _ErrorRow(
+            message: '网易云歌单加载失败：$error',
+            onRetry: () => ref.read(neteasePlaylistsProvider.notifier).reload(),
+          ),
+        ),
+      ],
+      data: (list) {
+        if (list.isEmpty) {
+          return [
+            const SliverToBoxAdapter(child: _EmptyRow(message: '暂无歌单')),
+          ];
+        }
+        return [
+          SliverList.builder(
+            itemCount: list.length,
+            itemBuilder: (context, index) =>
+                _NeteaseTile(playlist: list[index]),
+          ),
+        ];
+      },
     );
   }
 
@@ -283,65 +394,6 @@ class _TileActionSheet extends StatelessWidget {
   );
 }
 
-/// Collapsible cloud section with a create entry at the top of its contents.
-class _CloudSection extends StatelessWidget {
-  const _CloudSection({
-    required this.title,
-    required this.addLabel,
-    required this.onAdd,
-    required this.child,
-  });
-
-  final String title;
-  final String addLabel;
-  final VoidCallback onAdd;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ExpansionTile(
-      initiallyExpanded: false,
-      tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-      childrenPadding: EdgeInsets.zero,
-      title: Text(
-        title,
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      children: [
-        ListTile(
-          leading: const Icon(Icons.add_rounded),
-          title: Text(addLabel),
-          onTap: onAdd,
-        ),
-        child,
-      ],
-    );
-  }
-}
-
-class _BiliFolders extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final folders = ref.watch(favFoldersProvider);
-    return folders.when(
-      loading: () => const _LoadingRow(),
-      error: (error, _) => _ErrorRow(
-        message: '收藏夹加载失败：$error',
-        onRetry: () => ref.read(favFoldersProvider.notifier).reload(),
-      ),
-      data: (list) {
-        if (list.isEmpty) return const _EmptyRow(message: '暂无收藏夹');
-        return Column(
-          children: [for (final folder in list) _BiliTile(folder: folder)],
-        );
-      },
-    );
-  }
-}
-
 class _BiliTile extends ConsumerWidget {
   const _BiliTile({required this.folder});
 
@@ -420,30 +472,6 @@ class _BiliTile extends ConsumerWidget {
     } on BiliApiException catch (error) {
       if (context.mounted) _toast(context, error.message);
     }
-  }
-}
-
-class _NeteasePlaylists extends ConsumerWidget {
-  const _NeteasePlaylists();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final playlists = ref.watch(neteasePlaylistsProvider);
-    return playlists.when(
-      loading: () => const _LoadingRow(),
-      error: (error, _) => _ErrorRow(
-        message: '网易云歌单加载失败：$error',
-        onRetry: () => ref.read(neteasePlaylistsProvider.notifier).reload(),
-      ),
-      data: (list) {
-        if (list.isEmpty) return const _EmptyRow(message: '暂无歌单');
-        return Column(
-          children: [
-            for (final playlist in list) _NeteaseTile(playlist: playlist),
-          ],
-        );
-      },
-    );
   }
 }
 

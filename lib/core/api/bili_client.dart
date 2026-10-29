@@ -58,6 +58,8 @@ class BiliClient {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           options.headers.addAll(client._requestHeaders());
+          final cookie = client.cookies.headerFor(options.uri);
+          if (cookie.isNotEmpty) options.headers['Cookie'] = cookie;
           handler.next(options);
         },
         onResponse: (response, handler) async {
@@ -83,7 +85,6 @@ class BiliClient {
     'Origin': 'https://www.bilibili.com',
     'Accept': 'application/json, text/plain, */*',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    if (cookies.cookies.isNotEmpty) 'Cookie': cookies.header,
   };
 
   /// Requests an anonymous `buvid3`/`buvid4` pair if none is stored yet.

@@ -1,3 +1,5 @@
+import 'secure_url.dart';
+
 /// Helpers for the cover URLs of both supported services.
 abstract final class ImageUrl {
   /// Ensures the URL uses HTTPS and optionally asks the CDN for a thumbnail at
@@ -8,21 +10,19 @@ abstract final class ImageUrl {
   /// [height] defaults to [width]; pass it for artwork that is rendered in a
   /// non-square box so the download matches the displayed ratio.
   static String? resolve(String? url, {int? width, int? height}) {
-    if (url == null || url.isEmpty) return null;
-    var result = url.startsWith('//')
-        ? 'https:$url'
-        : url.replaceFirst(RegExp(r'^http://'), 'https://');
+    final result = SecureUrl.ensureHttps(url);
+    if (result == null || result.isEmpty) return null;
     if (width == null) return result;
 
     final host = Uri.tryParse(result)?.host ?? '';
     if (_isBilibiliHost(host)) {
       if (!result.contains('@')) {
-        result = '$result@${width}w_${height ?? width}h_1c.webp';
+        return '$result@${width}w_${height ?? width}h_1c.webp';
       }
     } else if (_isNeteaseHost(host)) {
       if (!result.contains('param=')) {
         final separator = result.contains('?') ? '&' : '?';
-        result = '$result${separator}param=${width}y${height ?? width}';
+        return '$result${separator}param=${width}y${height ?? width}';
       }
     }
     return result;
@@ -32,9 +32,14 @@ abstract final class ImageUrl {
   static const int thumbnailWidth = 360;
 
   static bool _isBilibiliHost(String host) =>
-      host.endsWith('hdslb.com') ||
-      host.endsWith('bilivideo.com') ||
-      host.endsWith('bilivideo.cn');
+      _matches(host, 'hdslb.com') ||
+      _matches(host, 'bilivideo.com') ||
+      _matches(host, 'bilivideo.cn');
 
-  static bool _isNeteaseHost(String host) => host.endsWith('126.net');
+  static bool _isNeteaseHost(String host) => _matches(host, '126.net');
+
+  /// Matches [domain] and its subdomains, but not lookalikes such as
+  /// `evil-hdslb.com`.
+  static bool _matches(String host, String domain) =>
+      host == domain || host.endsWith('.$domain');
 }

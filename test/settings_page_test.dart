@@ -1,3 +1,4 @@
+import 'package:flowingpod/core/api/netease_client.dart';
 import 'package:flowingpod/core/models/app_theme_mode.dart';
 import 'package:flowingpod/data/repositories/settings_repository.dart';
 import 'package:flowingpod/features/profile/profile_page.dart';
@@ -17,6 +18,9 @@ class _SignedOutAuth extends AuthController {
   AuthState build() => const AuthState(initialized: true);
 }
 
+/// Signed-out NetEase client, so the profile's NetEase card needs no network.
+late NeteaseClient _netease;
+
 Future<SharedPreferences> _freshPrefs() async {
   SharedPreferences.setMockInitialValues({});
   return SharedPreferences.getInstance();
@@ -26,6 +30,7 @@ Widget _wrap(SharedPreferences prefs, Widget home) => ProviderScope(
   overrides: [
     sharedPreferencesProvider.overrideWithValue(prefs),
     authControllerProvider.overrideWith(_SignedOutAuth.new),
+    neteaseClientProvider.overrideWithValue(_netease),
   ],
   child: MaterialApp(home: home),
 );
@@ -38,6 +43,13 @@ AppThemeMode? _themeDropdownValue(WidgetTester tester) => tester
     .value;
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    _netease = await NeteaseClient.create(prefs);
+  });
+
   test('a stored brightness falls back to the system when unknown', () {
     expect(AppThemeMode.fromStorage(null), AppThemeMode.system);
     expect(AppThemeMode.fromStorage('dark'), AppThemeMode.dark);

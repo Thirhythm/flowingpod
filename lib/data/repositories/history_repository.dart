@@ -53,10 +53,11 @@ class HistoryRepository {
     );
     final data = JsonUtils.map(response['data']);
     final rawList = JsonUtils.list(data['list']);
-    final entries = [
-      for (final item in rawList)
-        if (HistoryEntry.fromJson(item).isValid) HistoryEntry.fromJson(item),
-    ];
+    final entries = <HistoryEntry>[];
+    for (final item in rawList) {
+      final entry = HistoryEntry.fromJson(item);
+      if (entry.isValid) entries.add(entry);
+    }
 
     final rawCursor = JsonUtils.map(data['cursor']);
     final nextCursor = HistoryCursor(

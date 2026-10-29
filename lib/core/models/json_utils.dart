@@ -57,6 +57,15 @@ abstract final class JsonUtils {
     ];
   }
 
+  /// Reads a list of non-empty strings, ignoring entries of another type.
+  static List<String> strings(Object? value) {
+    if (value is! List) return const [];
+    return [
+      for (final item in value)
+        if (item is String && item.isNotEmpty) item,
+    ];
+  }
+
   /// Turns a second duration into a [Duration].
   static Duration durationFromSeconds(Object? value) =>
       Duration(seconds: integer(value));

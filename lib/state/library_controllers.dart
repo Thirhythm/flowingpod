@@ -87,8 +87,10 @@ class FavMediaController extends AsyncNotifier<PagedResult<MediaTrack>> {
       state = AsyncData(
         next.copyWith(items: [...current.items, ...next.items]),
       );
-    } on BiliApiException catch (error, stackTrace) {
-      if (ref.mounted) state = AsyncError(error, stackTrace);
+    } on BiliApiException {
+      // Keep the pages that already loaded; the scroll listener retries when
+      // the user reaches the end again.
+      if (ref.mounted) state = AsyncData(current);
     } finally {
       _loadingMore = false;
     }

@@ -22,10 +22,10 @@ final Provider<BiliClient> biliClientProvider = Provider<BiliClient>(
   (ref) => throw StateError('biliClientProvider must be overridden in main()'),
 );
 
-/// NetEase API client; created from the preferences so the audio service and
-/// the UI share the same session cookies.
+/// NetEase API client; created in `main()` after the encrypted cookie jar has
+/// been loaded, so the audio service and the UI share the same session.
 final Provider<NeteaseClient> neteaseClientProvider = Provider<NeteaseClient>(
-  (ref) => NeteaseClient(ref.watch(sharedPreferencesProvider)),
+  (ref) => throw StateError('neteaseClientProvider must be overridden in main()'),
 );
 
 final Provider<SharedPreferences> sharedPreferencesProvider =

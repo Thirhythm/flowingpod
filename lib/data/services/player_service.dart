@@ -13,6 +13,7 @@ import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/core/models/play_mode.dart';
 import 'package:flowingpod/core/models/player_state.dart';
 import 'package:flowingpod/core/utils/image_url.dart';
+import 'package:flowingpod/core/utils/secure_url.dart';
 import 'package:flowingpod/data/repositories/netease_repository.dart';
 import 'package:flowingpod/data/repositories/video_repository.dart';
 import 'package:flowingpod/data/services/audio_effects.dart';
@@ -44,7 +45,7 @@ class BiliAudioService extends BaseAudioHandler
     _restore();
     // Brings the engine up silently so the equalizer reports its band layout
     // (and any queued band gains can be applied) before anything is played.
-    unawaited(_warmUpEngine());
+    _warmUp = _warmUpEngine();
     _subscriptions.addAll([
       _player.playbackEventStream.listen(
         (_) => playbackState.add(_buildPlaybackState()),
@@ -145,6 +146,14 @@ class BiliAudioService extends BaseAudioHandler
   /// it still holds the silent warm-up source or nothing at all.
   bool _trackLoaded = false;
 
+  /// Completes when the silent warm-up source and the equalizer layout are
+  /// ready. Playback awaits it so a slow warm-up can never overwrite a track.
+  Future<void> _warmUp = Future<void>.value();
+
+  /// Incremented for every load, letting a superseded load discard its result
+  /// instead of overwriting the entry the user selected last.
+  int _loadToken = 0;
+
   final VideoRepository _videos;
   final NeteaseRepository _netease;
   final SharedPreferences _prefs;
@@ -202,6 +211,7 @@ class BiliAudioService extends BaseAudioHandler
     int startIndex = 0,
     bool autoPlay = true,
   }) async {
+    _loadToken++;
     _queue = List.of(tracks);
     _currentIndex = _queue.isEmpty
         ? -1
@@ -215,8 +225,11 @@ class BiliAudioService extends BaseAudioHandler
     final track = currentTrack;
     if (track != null) {
       _broadcastMediaItem(track, _duration);
-      _persist();
+    } else {
+      mediaItem.add(null);
     }
+    unawaited(_persistQueue());
+    unawaited(_persistIndex());
     _emit();
 
     if (autoPlay && track != null) {
@@ -251,7 +264,8 @@ class BiliAudioService extends BaseAudioHandler
 
     _applyPlayNextPlan(plan);
     _broadcastQueue();
-    _persist();
+    unawaited(_persistQueue());
+    unawaited(_persistIndex());
     _emit();
     return true;
   }
@@ -275,7 +289,8 @@ class BiliAudioService extends BaseAudioHandler
 
     _applyPlayNextPlan(plan);
     _broadcastQueue();
-    await _persist();
+    unawaited(_persistQueue());
+    unawaited(_persistIndex());
     unawaited(_playAt(plan.currentIndex + 1));
   }
 
@@ -328,13 +343,15 @@ class BiliAudioService extends BaseAudioHandler
     }
     _rebuildShuffleOrder(lead: _currentIndex);
     _broadcastQueue();
-    _persist();
+    unawaited(_persistQueue());
+    unawaited(_persistIndex());
     _emit();
     if (removesCurrent) await _loadCurrent();
   }
 
   /// Stops playback and empties the queue.
   Future<void> clearQueue() async {
+    _loadToken++;
     await _player.stop();
     _queue = [];
     _shuffleOrder = [];
@@ -352,6 +369,7 @@ class BiliAudioService extends BaseAudioHandler
 
   Future<void> dispose() async {
     _disposed = true;
+    _loadToken++;
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }
@@ -596,46 +614,66 @@ class BiliAudioService extends BaseAudioHandler
     final track = currentTrack;
     if (track == null) return;
 
+    final token = ++_loadToken;
     _buffering = true;
     _error = null;
     _emit();
 
     try {
+      await _warmUp;
+      if (token != _loadToken) return;
+
+      final queueLengthBefore = _queue.length;
       final resolvedIndex = await _resolveIndexIfNeeded(_currentIndex);
+      if (token != _loadToken) return;
+      if (resolvedIndex < 0 || resolvedIndex >= _queue.length) return;
       if (resolvedIndex != _currentIndex) {
         _currentIndex = resolvedIndex;
         _broadcastQueue();
       }
       final resolved = _queue[_currentIndex];
+      final queueChanged =
+          queueLengthBefore != _queue.length || track.id != resolved.id;
 
+      final Uri uri;
       if (resolved.isNetease) {
         final url = await _resolveNeteaseUrl(resolved.songId);
-        final uri = Uri.tryParse(url);
-        if (uri == null) {
+        if (token != _loadToken) return;
+        final parsed = Uri.tryParse(SecureUrl.ensureHttps(url) ?? '');
+        if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
           throw const BiliApiException(code: -1, message: '音频地址无效');
         }
-        await _player.setAudioSource(
-          AudioSource.uri(uri, headers: _neteaseStreamHeaders),
-        );
+        uri = parsed;
         _duration = resolved.duration;
       } else {
         final source = await _videos.fetchPlaybackSource(
           bvid: resolved.bvid,
           cid: resolved.cid,
         );
+        if (token != _loadToken) return;
         final best = source.best;
         if (best == null) {
           throw const BiliApiException(code: -1, message: '该视频没有可用的音频流');
         }
-        final uri = Uri.tryParse(best.url);
-        if (uri == null) {
+        final parsed = Uri.tryParse(SecureUrl.ensureHttps(best.url) ?? '');
+        if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
           throw const BiliApiException(code: -1, message: '音频地址无效');
         }
-        await _player.setAudioSource(
-          AudioSource.uri(uri, headers: _streamHeaders),
-        );
+        uri = parsed;
         _duration = source.duration ?? resolved.duration;
       }
+      if (token != _loadToken) return;
+
+      await _player.setAudioSource(
+        AudioSource.uri(
+          uri,
+          headers: resolved.isNetease
+              ? _neteaseStreamHeaders
+              : _streamHeaders,
+        ),
+      );
+      if (token != _loadToken) return;
+
       _trackLoaded = true;
 
       if (_duration <= Duration.zero) {
@@ -644,16 +682,19 @@ class BiliAudioService extends BaseAudioHandler
       _buffering = false;
       _autoRetries = 0;
       _broadcastMediaItem(resolved, _duration);
-      _persist();
+      if (queueChanged) unawaited(_persistQueue());
+      unawaited(_persistIndex());
       _emit();
       playbackState.add(_buildPlaybackState());
 
       if (autoplay) await _player.play();
     } on BiliApiException catch (error) {
+      if (token != _loadToken) return;
       _buffering = false;
       _error = error.message;
       _emit();
     } catch (error) {
+      if (token != _loadToken) return;
       _buffering = false;
       _error = '播放失败：$error';
       _emit();
@@ -718,6 +759,18 @@ class BiliAudioService extends BaseAudioHandler
     final parts = detail.toTracks();
     if (parts.isEmpty) {
       throw const BiliApiException(code: -404, message: '该视频没有可播放的分P');
+    }
+    if (index >= _queue.length ||
+        _queue[index].bvid != track.bvid ||
+        _queue[index].page != track.page ||
+        _queue[index].cid > 0) {
+      // Another load already expanded this slot (or the queue was replaced),
+      // so reuse its result instead of inserting the parts twice.
+      final resolved = _queue.indexWhere(
+        (item) =>
+            item.bvid == track.bvid && item.page == track.page && item.cid > 0,
+      );
+      return resolved < 0 ? index : resolved;
     }
     _queue.removeAt(index);
     _queue.insertAll(index, parts);
@@ -888,12 +941,6 @@ class BiliAudioService extends BaseAudioHandler
     album: track.partTitle ?? '',
     duration: duration > Duration.zero ? duration : null,
     artUri: _artUri(track.cover),
-    extras: {
-      'source': track.source.name,
-      'bvid': track.bvid,
-      'cid': track.cid,
-      'songId': track.songId,
-    },
   );
 
   Uri? _artUri(String cover) {
@@ -961,13 +1008,14 @@ class BiliAudioService extends BaseAudioHandler
     _lastState = state;
   }
 
-  Future<void> _persist() async {
+  Future<void> _persistQueue() async {
     await _prefs.setString(
       _queueKey,
       jsonEncode([for (final track in _queue) track.toJson()]),
     );
-    await _prefs.setInt(_indexKey, _currentIndex);
   }
+
+  Future<void> _persistIndex() => _prefs.setInt(_indexKey, _currentIndex);
 }
 
 /// Reordered queue together with the index the current entry ends up at.

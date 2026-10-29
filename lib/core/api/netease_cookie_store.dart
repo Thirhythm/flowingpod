@@ -4,25 +4,29 @@ import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'cookie_vault.dart';
+
 /// Persistent cookie jar for the NetEase Cloud Music session.
 ///
-/// The web API expects the cookies in a `Cookie` header, so the jar is stored
-/// as a name/value map in `SharedPreferences`. Anonymous client cookies are
-/// generated on first use, matching the web player's device identity.
+/// The web API expects the cookies in a `Cookie` header, so the jar is kept
+/// in memory and persisted through [CookieVault] (Android keystore). Anonymous
+/// client cookies are generated on first use, matching the web player's device
+/// identity.
 class NeteaseCookieStore {
-  NeteaseCookieStore._(this._prefs, this._cookies);
+  NeteaseCookieStore._(this._vault, this._cookies);
 
   static const String storageKey = 'netease_cookie_jar_v1';
 
-  final SharedPreferences _prefs;
+  final CookieVault _vault;
   final Map<String, String> _cookies;
   static final Random _random = Random.secure();
 
-  /// Loads (or creates) the persisted jar synchronously, because the API
-  /// client is constructed during app bootstrap.
-  factory NeteaseCookieStore.fromPrefs(SharedPreferences prefs) {
+  /// Loads (or creates) the persisted jar, migrating the legacy plaintext key.
+  static Future<NeteaseCookieStore> load(SharedPreferences prefs) async {
+    final vault = CookieVault.create(prefs);
+    final legacy = prefs.getString(storageKey);
+    final raw = await vault.read(storageKey);
     final cookies = <String, String>{};
-    final raw = prefs.getString(storageKey);
     if (raw != null && raw.isNotEmpty) {
       try {
         final decoded = jsonDecode(raw);
@@ -37,8 +41,12 @@ class NeteaseCookieStore {
         // Corrupted jar: start fresh rather than failing at startup.
       }
     }
-    final store = NeteaseCookieStore._(prefs, cookies);
-    if (store._ensureClientCookies()) unawaited(store._persist());
+    final store = NeteaseCookieStore._(vault, cookies);
+    if (store._ensureClientCookies()) await store._persist();
+    if (legacy != null) {
+      // Move a pre-encryption jar into the keystore and drop the plaintext.
+      await store._persist();
+    }
     return store;
   }
 
@@ -47,9 +55,14 @@ class NeteaseCookieStore {
   /// `MUSIC_U` is only present once a user has logged in.
   bool get hasSession => (_cookies['MUSIC_U'] ?? '').isNotEmpty;
 
-  /// Value for the API's `Cookie` header.
-  String get header =>
-      _cookies.entries.map((entry) => '${entry.key}=${entry.value}').join('; ');
+  /// Value for the API's `Cookie` header, scoped to NetEase hosts only.
+  String headerFor(Uri uri) {
+    if (!_isNeteaseHost(uri.host)) return '';
+    return _cookies.entries.map((entry) => '${entry.key}=${entry.value}').join('; ');
+  }
+
+  static bool _isNeteaseHost(String host) =>
+      host == 'music.163.com' || host.endsWith('.music.163.com');
 
   /// Merges a raw `name=value; name2=value2` string (e.g. a login response).
   Future<void> mergeHeader(String? raw) async {
@@ -143,5 +156,6 @@ class NeteaseCookieStore {
       String.fromCharCode(0x61 + _random.nextInt(26)),
   ].join();
 
-  Future<void> _persist() => _prefs.setString(storageKey, jsonEncode(_cookies));
+  Future<void> _persist() =>
+      _vault.write(storageKey, jsonEncode(_cookies));
 }

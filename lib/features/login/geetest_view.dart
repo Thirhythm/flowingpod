@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:flowingpod/core/api/bili_endpoints.dart';
-import 'package:flowingpod/core/models/json_utils.dart';
 import 'package:flowingpod/data/repositories/auth_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -72,6 +70,14 @@ class _GeetestViewState extends State<GeetestView> {
   /// Name of the JS bridge the widget reports through.
   static const String _bridge = 'GeetestBridge';
 
+  /// The inline document is loaded under the SDK's own origin, so a script in
+  /// it cannot reach passport.bilibili.com's same-origin endpoints.
+  static const String _baseUrl = 'https://static.geetest.com/';
+
+  /// Bridge messages only ever carry a few short geetest fields.
+  static const int _maxMessageLength = 8192;
+  static const int _maxFieldLength = 2048;
+
   late final WebViewController _controller;
   bool _ready = false;
 
@@ -81,16 +87,37 @@ class _GeetestViewState extends State<GeetestView> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.white)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onNavigationRequest: (request) {
+            final uri = Uri.tryParse(request.url);
+            if (uri == null) return NavigationDecision.prevent;
+            if (uri.scheme == 'about') return NavigationDecision.navigate;
+            if (uri.scheme == 'https' &&
+                (_isGeetestHost(uri.host) || _isBilibiliHost(uri.host))) {
+              return NavigationDecision.navigate;
+            }
+            return NavigationDecision.prevent;
+          },
+        ),
+      )
       ..addJavaScriptChannel(_bridge, onMessageReceived: _onMessage)
       ..loadHtmlString(
         _buildHtml(widget.challenge.gt, widget.challenge.challenge),
-        baseUrl: BiliEndpoints.passportBase,
+        baseUrl: _baseUrl,
       );
   }
+
+  static bool _isGeetestHost(String host) =>
+      host == 'geetest.com' || host.endsWith('.geetest.com');
+
+  static bool _isBilibiliHost(String host) =>
+      host == 'bilibili.com' || host.endsWith('.bilibili.com');
 
   void _onMessage(JavaScriptMessage message) {
     // The page keeps reporting after the view has been removed.
     if (!mounted) return;
+    if (message.message.length > _maxMessageLength) return;
     final Object? decoded;
     try {
       decoded = jsonDecode(message.message);
@@ -112,12 +139,12 @@ class _GeetestViewState extends State<GeetestView> {
       widget.callbacks.onFailed('人机验证加载失败，请重试');
       return;
     }
-    final validate = JsonUtils.string(payload['validate']);
-    final seccode = JsonUtils.string(payload['seccode']);
+    final validate = _stringField(payload['validate']);
+    final seccode = _stringField(payload['seccode']);
     if (validate.isEmpty || seccode.isEmpty) return;
     widget.callbacks.onSolved(
       GeetestResult(
-        challenge: JsonUtils.string(
+        challenge: _stringField(
           payload['challenge'],
           fallback: widget.challenge.challenge,
         ),
@@ -126,6 +153,18 @@ class _GeetestViewState extends State<GeetestView> {
       ),
     );
   }
+
+  static String _stringField(Object? value, {String fallback = ''}) {
+    if (value is! String || value.isEmpty || value.length > _maxFieldLength) {
+      return fallback;
+    }
+    return value;
+  }
+
+  /// Emits a JS string literal whose contents cannot close the enclosing
+  /// `<script>` element.
+  static String _jsString(String value) =>
+      jsonEncode(value).replaceAll('<', r'\u003c');
 
   @override
   Widget build(BuildContext context) {
@@ -183,8 +222,8 @@ class _GeetestViewState extends State<GeetestView> {
       return;
     }
     initGeetest({
-      gt: ${jsonEncode(gt)},
-      challenge: ${jsonEncode(challenge)},
+      gt: ${_jsString(gt)},
+      challenge: ${_jsString(challenge)},
       offline: false,
       new_captcha: true,
       https: true,

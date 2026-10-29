@@ -88,7 +88,7 @@ void main() {
       ProviderScope(
         overrides: [
           neteaseRepositoryProvider.overrideWithValue(
-            _FakeNetease(NeteaseClient(prefs)),
+            _FakeNetease(await NeteaseClient.create(prefs)),
           ),
         ],
         child: const MaterialApp(home: SearchPage()),

@@ -1,3 +1,4 @@
+import 'package:flowingpod/core/api/netease_client.dart';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/play_mode.dart';
 import 'package:flowingpod/core/models/player_state.dart';
@@ -56,8 +57,12 @@ class _FailedSearch extends search.SearchController {
   );
 }
 
+/// Signed-out NetEase client, so the shell's profile tab needs no network.
+late NeteaseClient _netease;
+
 Widget _host() => ProviderScope(
   overrides: [
+    neteaseClientProvider.overrideWithValue(_netease),
     authControllerProvider.overrideWith(_SignedOutAuth.new),
     search
         .searchControllerProvider(TrackSource.bilibili)
@@ -100,6 +105,13 @@ void _setViewport(
 }
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    _netease = await NeteaseClient.create(prefs);
+  });
+
   testWidgets('small phone with a tall keyboard', (tester) async {
     // 360x640dp with a keyboard that carries a toolbar/suggestion strip; this
     // used to overflow the search page by 34px.
@@ -173,6 +185,7 @@ void main() {
       ProviderScope(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(preferences),
+          neteaseClientProvider.overrideWithValue(_netease),
           authControllerProvider.overrideWith(_SignedOutAuth.new),
           playerStateProvider.overrideWith(_FakePlayer.new),
           playbackPositionProvider.overrideWithValue(

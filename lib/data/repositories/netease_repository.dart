@@ -10,6 +10,7 @@ import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/core/models/netease_user.dart';
 import 'package:flowingpod/core/models/paged_result.dart';
 import 'package:flowingpod/core/models/track_source.dart';
+import 'package:flowingpod/core/utils/secure_url.dart';
 
 enum NeteaseQrStatus { waiting, scanned, expired, success, failed }
 
@@ -41,6 +42,15 @@ class NeteaseRepository {
 
   static const int pageSize = 30;
 
+  /// The playlist endpoint returns full track objects; requesting the same
+  /// number of tracks the caller keeps avoids shipping the whole playlist and
+  /// then discarding it.
+  static const int _maxPlaylistTracks = 1000;
+
+  /// Highest level a song was observed to support, so opening the quality
+  /// sheet again does not probe the API from scratch.
+  final Map<int, List<NeteaseQuality>> _qualityCache = {};
+
   bool get isLoggedIn => _client.isLoggedIn;
 
   // --- Account ------------------------------------------------------------
@@ -66,9 +76,14 @@ class NeteaseRepository {
     } catch (_) {
       // The remote session is best-effort; local cookies are cleared below.
     } finally {
+      _qualityCache.clear();
       await _client.cookies.clear();
     }
   }
+
+  /// Drops probe results whose availability depends on the signed-in account
+  /// (VIP levels change after login or logout).
+  void clearQualityCache() => _qualityCache.clear();
 
   // --- QR login -----------------------------------------------------------
 
@@ -261,7 +276,7 @@ class NeteaseRepository {
     final url = JsonUtils.string(first['url']);
     if (url.isEmpty) return null;
     return NeteaseSongUrl(
-      url: url,
+      url: SecureUrl.ensureHttps(url)!,
       level: NeteaseQuality.fromApiValue(
         JsonUtils.string(first['level'], fallback: quality.apiValue),
       ),
@@ -275,15 +290,20 @@ class NeteaseRepository {
   /// API answers with the best level it can deliver, so a single probe is
   /// usually enough. Lower levels are tried only when the request itself fails.
   Future<List<NeteaseQuality>> fetchAvailableQualities(int songId) async {
+    final cached = _qualityCache[songId];
+    if (cached != null) return cached;
+
     for (final quality in NeteaseQuality.values.reversed) {
       try {
         final result = await fetchSongUrl(songId, quality: quality);
         if (result == null) continue;
         final highest = result.level ?? quality;
-        return [
+        final available = [
           for (final level in NeteaseQuality.values)
             if (level.index <= highest.index) level,
         ];
+        _qualityCache[songId] = available;
+        return available;
       } on BiliApiException {
         // Unsupported levels are skipped in favour of the next one down.
       }
@@ -377,7 +397,7 @@ class NeteaseRepository {
     final detail = _client.expectOk(
       await _client.request(
         NeteaseEndpoints.playlistDetail,
-        data: {'id': playlistId, 'n': 100000, 's': 8},
+        data: {'id': playlistId, 'n': _maxPlaylistTracks, 's': 8},
       ),
       NeteaseEndpoints.playlistDetail,
     );
@@ -385,7 +405,7 @@ class NeteaseRepository {
     final trackIds = [
       for (final item in JsonUtils.list(playlist['trackIds']))
         JsonUtils.integer(item['id']),
-    ].where((id) => id > 0).take(1000).toList();
+    ].where((id) => id > 0).take(_maxPlaylistTracks).toList();
     if (trackIds.isEmpty) return const [];
 
     final songs = _client.expectOk(

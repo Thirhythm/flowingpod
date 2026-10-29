@@ -14,9 +14,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Requests are encrypted locally with the same `weapi` scheme the web player
 /// uses, so no proxy or self-hosted API service is required.
 class NeteaseClient {
-  NeteaseClient(SharedPreferences prefs)
-    : cookies = NeteaseCookieStore.fromPrefs(prefs),
-      _dio = Dio(
+  NeteaseClient(this.cookies)
+    : _dio = Dio(
         BaseOptions(
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 20),
@@ -25,6 +24,10 @@ class NeteaseClient {
           validateStatus: (_) => true,
         ),
       );
+
+  /// Loads the encrypted cookie jar before the client is constructed.
+  static Future<NeteaseClient> create(SharedPreferences prefs) async =>
+      NeteaseClient(await NeteaseCookieStore.load(prefs));
 
   final Dio _dio;
   final NeteaseCookieStore cookies;
@@ -52,6 +55,7 @@ class NeteaseClient {
       'e_r': false,
     });
     final uri = Uri.parse('${NeteaseEndpoints.host}/weapi$path');
+    final cookie = cookies.headerFor(uri);
     try {
       final response = await _dio.postUri<dynamic>(
         uri,
@@ -63,7 +67,7 @@ class NeteaseClient {
             'Referer': 'https://music.163.com',
             'Origin': 'https://music.163.com',
             'Accept': 'application/json, text/plain, */*',
-            if (cookies.header.isNotEmpty) 'Cookie': cookies.header,
+            if (cookie.isNotEmpty) 'Cookie': cookie,
           },
         ),
       );

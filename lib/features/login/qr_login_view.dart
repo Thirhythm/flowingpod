@@ -4,11 +4,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 /// QR code login against the Bilibili web passport.
-class QrLoginView extends ConsumerWidget {
+class QrLoginView extends ConsumerStatefulWidget {
   const QrLoginView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<QrLoginView> createState() => _QrLoginViewState();
+}
+
+class _QrLoginViewState extends ConsumerState<QrLoginView> {
+  TabController? _tabs;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tabs = DefaultTabController.maybeOf(context);
+    if (!identical(tabs, _tabs)) {
+      _tabs?.removeListener(_syncActive);
+      _tabs = tabs;
+      _tabs?.addListener(_syncActive);
+      _syncActive();
+    }
+  }
+
+  /// The QR tab is the second one on the login page.
+  void _syncActive() {
+    if (!mounted) return;
+    ref
+        .read(qrLoginProvider.notifier)
+        .setActive(_tabs == null || _tabs!.index == 1);
+  }
+
+  @override
+  void dispose() {
+    _tabs?.removeListener(_syncActive);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(qrLoginProvider);
 
     ref.listen(qrLoginProvider, (previous, next) {

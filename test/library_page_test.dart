@@ -1,3 +1,4 @@
+import 'package:flowingpod/core/api/netease_client.dart';
 import 'package:flowingpod/core/models/local_playlist.dart';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/player_state.dart';
@@ -58,9 +59,13 @@ Future<SharedPreferences> _seedPrefs() async {
   return prefs;
 }
 
+/// Signed-out NetEase client, so the cloud section needs no network.
+late NeteaseClient _netease;
+
 Widget _wrap(SharedPreferences prefs, Widget home) => ProviderScope(
   overrides: [
     sharedPreferencesProvider.overrideWithValue(prefs),
+    neteaseClientProvider.overrideWithValue(_netease),
     authControllerProvider.overrideWith(_SignedOutAuth.new),
     playerStateProvider.overrideWith(_IdlePlayer.new),
     playbackPositionProvider.overrideWithValue(
@@ -71,6 +76,13 @@ Widget _wrap(SharedPreferences prefs, Widget home) => ProviderScope(
 );
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    _netease = await NeteaseClient.create(prefs);
+  });
+
   testWidgets('signed out, the library shows local playlists and history', (
     tester,
   ) async {

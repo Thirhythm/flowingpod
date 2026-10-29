@@ -1,4 +1,5 @@
 import 'json_utils.dart';
+import 'package:flowingpod/core/utils/secure_url.dart';
 
 /// A single audio-only stream extracted from a video's DASH manifest.
 class AudioStream {
@@ -31,10 +32,14 @@ class AudioStream {
 
   factory AudioStream.fromJson(Map<String, dynamic> json) => AudioStream(
     qualityId: JsonUtils.integer(json['id']),
-    url: JsonUtils.string(json['baseUrl'] ?? json['base_url']),
+    url: SecureUrl.ensureHttps(
+      JsonUtils.string(json['baseUrl'] ?? json['base_url']),
+    )!,
     backupUrls: [
-      for (final item in (json['backupUrl'] ?? json['backup_url'] ?? const []) as List)
-        if (item is String && item.isNotEmpty) item,
+      for (final item in JsonUtils.strings(
+        json['backupUrl'] ?? json['backup_url'],
+      ))
+        SecureUrl.ensureHttps(item)!,
     ],
     bandwidth: JsonUtils.integer(json['bandwidth']),
     mimeType: JsonUtils.string(json['mimeType'] ?? json['mime_type'], fallback: 'audio/mp4'),
@@ -71,10 +76,10 @@ class PlaybackSource {
         streams.add(
           AudioStream(
             qualityId: JsonUtils.integer(json['quality']),
-            url: JsonUtils.string(first['url']),
+            url: SecureUrl.ensureHttps(JsonUtils.string(first['url']))!,
             backupUrls: [
-              for (final item in (first['backup_url'] ?? const []) as List)
-                if (item is String && item.isNotEmpty) item,
+              for (final item in JsonUtils.strings(first['backup_url']))
+                SecureUrl.ensureHttps(item)!,
             ],
             bandwidth: 0,
             mimeType: 'audio/mp4',

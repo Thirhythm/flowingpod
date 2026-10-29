@@ -33,12 +33,40 @@ class _QrLoginView extends ConsumerStatefulWidget {
 }
 
 class _QrLoginViewState extends ConsumerState<_QrLoginView> {
+  TabController? _tabs;
+
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
       if (mounted) ref.read(neteaseQrProvider.notifier).start();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tabs = DefaultTabController.maybeOf(context);
+    if (!identical(tabs, _tabs)) {
+      _tabs?.removeListener(_syncActive);
+      _tabs = tabs;
+      _tabs?.addListener(_syncActive);
+      _syncActive();
+    }
+  }
+
+  /// The QR tab is the first one on the NetEase login page.
+  void _syncActive() {
+    if (!mounted) return;
+    ref
+        .read(neteaseQrProvider.notifier)
+        .setActive(_tabs == null || _tabs!.index == 0);
+  }
+
+  @override
+  void dispose() {
+    _tabs?.removeListener(_syncActive);
+    super.dispose();
   }
 
   @override

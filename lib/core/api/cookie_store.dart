@@ -2,22 +2,27 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'cookie_vault.dart';
+
 /// Persistent cookie jar for the Bilibili session.
 ///
-/// Cookies are kept in `SharedPreferences` so the session survives app
-/// restarts on Android without pulling in a full cookie-jar dependency.
+/// The jar is stored through [CookieVault] so the session tokens live in the
+/// Android keystore rather than a plain preferences file. The legacy plaintext
+/// key is migrated on first launch.
 class CookieStore {
-  CookieStore._(this._prefs, this._cookies);
+  CookieStore._(this._vault, this._cookies);
 
   static const String _storageKey = 'bili_cookie_jar';
 
-  final SharedPreferences _prefs;
+  final CookieVault _vault;
   final Map<String, String> _cookies;
 
   /// Loads (or creates) the persisted jar.
   static Future<CookieStore> create() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey);
+    final vault = CookieVault.create(prefs);
+    final legacy = prefs.getString(_storageKey);
+    final raw = await vault.read(_storageKey);
     final cookies = <String, String>{};
     if (raw != null && raw.isNotEmpty) {
       try {
@@ -31,11 +36,12 @@ class CookieStore {
         // Corrupted jar: start fresh rather than crashing on launch.
       }
     }
-    return CookieStore._(prefs, cookies);
+    if (legacy != null) {
+      // Move a pre-encryption jar into the keystore and drop the plaintext.
+      await vault.write(_storageKey, jsonEncode(cookies));
+    }
+    return CookieStore._(vault, cookies);
   }
-
-  /// Read-only snapshot of the current cookies.
-  Map<String, String> get cookies => Map.unmodifiable(_cookies);
 
   String? operator [](String name) => _cookies[name];
 
@@ -45,9 +51,14 @@ class CookieStore {
   /// CSRF token required by `POST` endpoints.
   String? get csrfToken => _cookies['bili_jct'];
 
-  /// Value for the `Cookie` request header.
-  String get header =>
-      _cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
+  /// Value for the `Cookie` request header, scoped to Bilibili hosts only.
+  String headerFor(Uri uri) {
+    if (!_isBilibiliHost(uri.host)) return '';
+    return _cookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
+  }
+
+  static bool _isBilibiliHost(String host) =>
+      host == 'bilibili.com' || host.endsWith('.bilibili.com');
 
   /// Merges [values] into the jar and persists once.
   Future<void> setAll(Map<String, String> values) async {
@@ -79,8 +90,9 @@ class CookieStore {
   /// Removes every cookie (used on logout).
   Future<void> clear() async {
     _cookies.clear();
-    await _prefs.remove(_storageKey);
+    await _vault.delete(_storageKey);
   }
 
-  Future<void> _persist() => _prefs.setString(_storageKey, jsonEncode(_cookies));
+  Future<void> _persist() =>
+      _vault.write(_storageKey, jsonEncode(_cookies));
 }
