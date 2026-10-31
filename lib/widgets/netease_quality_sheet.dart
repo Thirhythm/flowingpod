@@ -14,10 +14,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// The list is discovered from the API, so a song without 无损 simply does not
 /// offer it. The level actually playing is ticked; when the remembered quality
 /// is missing the API falls back to 极高, which is what the tick then sits on.
+///
+/// With [forDownload] the sheet only picks the quality to download, without
+/// touching playback, and pops with the chosen level.
 class NeteaseQualitySheet extends ConsumerStatefulWidget {
-  const NeteaseQualitySheet({super.key, required this.track});
+  const NeteaseQualitySheet({
+    super.key,
+    required this.track,
+    this.forDownload = false,
+  });
 
   final MediaTrack track;
+  final bool forDownload;
 
   static Future<void> show(BuildContext context, {required MediaTrack track}) =>
       showModalBottomSheet<void>(
@@ -26,6 +34,17 @@ class NeteaseQualitySheet extends ConsumerStatefulWidget {
         useSafeArea: true,
         builder: (_) => NeteaseQualitySheet(track: track),
       );
+
+  /// Returns the chosen download quality, or `null` when dismissed.
+  static Future<NeteaseQuality?> showForDownload(
+    BuildContext context, {
+    required MediaTrack track,
+  }) => showModalBottomSheet<NeteaseQuality>(
+    context: context,
+    showDragHandle: true,
+    useSafeArea: true,
+    builder: (_) => NeteaseQualitySheet(track: track, forDownload: true),
+  );
 
   @override
   ConsumerState<NeteaseQualitySheet> createState() =>
@@ -48,6 +67,10 @@ class _NeteaseQualitySheetState extends ConsumerState<NeteaseQualitySheet> {
   }
 
   Future<void> _select(NeteaseQuality quality) async {
+    if (widget.forDownload) {
+      Navigator.of(context).pop(quality);
+      return;
+    }
     final previous = ref.read(neteaseQualityProvider);
     await ref.read(neteaseQualityProvider.notifier).setQuality(quality);
     if (quality != previous) {
@@ -67,7 +90,7 @@ class _NeteaseQualitySheetState extends ConsumerState<NeteaseQualitySheet> {
         children: [
           ListTile(
             title: Text(
-              '音质',
+              widget.forDownload ? '下载音质' : '音质',
               style: theme.textTheme.titleSmall,
             ),
             subtitle: Text(

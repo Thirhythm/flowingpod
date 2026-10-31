@@ -15,6 +15,11 @@ class SettingsRepository {
   static const String _dynamicColorKey = 'settings_dynamic_color_v1';
   static const String _audioEffectsKey = 'settings_audio_effects_v1';
 
+  /// Read by the audio service at startup, before the settings UI exists.
+  static const String volumeLevelingKey = 'settings_volume_leveling_v1';
+
+  static const String _downloadDirectoryKey = 'settings_download_directory_v1';
+
   final SharedPreferences _prefs;
 
   /// Whether tapping a track should open the full screen player right away.
@@ -36,6 +41,12 @@ class SettingsRepository {
   Future<void> setDynamicColor(bool value) =>
       _prefs.setBool(_dynamicColorKey, value);
 
+  /// Whether playback evens out the loudness of different tracks.
+  bool loadVolumeLeveling() => _prefs.getBool(volumeLevelingKey) ?? false;
+
+  Future<void> setVolumeLeveling(bool value) =>
+      _prefs.setBool(volumeLevelingKey, value);
+
   /// Equalizer and loudness enhancer preferences.
   AudioEffectSettings loadAudioEffects() {
     final raw = _prefs.getString(_audioEffectsKey);
@@ -49,6 +60,13 @@ class SettingsRepository {
 
   Future<void> setAudioEffects(AudioEffectSettings settings) =>
       _prefs.setString(_audioEffectsKey, jsonEncode(settings.toJson()));
+
+  /// Folder downloads are saved to; `null` means the default Music folder.
+  String? loadDownloadDirectory() => _prefs.getString(_downloadDirectoryKey);
+
+  Future<void> setDownloadDirectory(String? path) => path == null
+      ? _prefs.remove(_downloadDirectoryKey)
+      : _prefs.setString(_downloadDirectoryKey, path);
 
   /// Sound quality to request for NetEase songs.
   NeteaseQuality loadNeteaseQuality() =>

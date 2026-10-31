@@ -49,6 +49,42 @@ class DynamicColorController extends Notifier<bool> {
   }
 }
 
+/// Whether playback evens out the loudness of different tracks.
+final NotifierProvider<VolumeLevelingController, bool> volumeLevelingProvider =
+    NotifierProvider<VolumeLevelingController, bool>(
+      VolumeLevelingController.new,
+    );
+
+class VolumeLevelingController extends Notifier<bool> {
+  @override
+  bool build() => ref.watch(settingsRepositoryProvider).loadVolumeLeveling();
+
+  Future<void> setEnabled(bool value) async {
+    await ref.read(settingsRepositoryProvider).setVolumeLeveling(value);
+    if (!ref.mounted) return;
+    state = value;
+    await ref.read(audioEffectsProvider).setVolumeLevelingEnabled(value);
+  }
+}
+
+/// Folder downloads are saved to; `null` keeps the default Music folder.
+final NotifierProvider<DownloadDirectoryController, String?>
+downloadDirectoryProvider =
+    NotifierProvider<DownloadDirectoryController, String?>(
+      DownloadDirectoryController.new,
+    );
+
+class DownloadDirectoryController extends Notifier<String?> {
+  @override
+  String? build() =>
+      ref.watch(settingsRepositoryProvider).loadDownloadDirectory();
+
+  Future<void> setDirectory(String? path) async {
+    await ref.read(settingsRepositoryProvider).setDownloadDirectory(path);
+    if (ref.mounted) state = path;
+  }
+}
+
 /// Remembered sound quality for NetEase songs, applied when a stream is
 /// resolved and shown in the player's quality menu.
 final NotifierProvider<NeteaseQualityController, NeteaseQuality>

@@ -1,6 +1,10 @@
 import 'package:flowingpod/core/api/netease_client.dart';
 import 'package:flowingpod/core/models/app_theme_mode.dart';
+import 'package:flowingpod/core/models/equalizer_capabilities.dart';
+import 'package:flowingpod/core/models/equalizer_curve.dart';
+import 'package:flowingpod/core/utils/storage_paths.dart';
 import 'package:flowingpod/data/repositories/settings_repository.dart';
+import 'package:flowingpod/data/services/audio_effects.dart';
 import 'package:flowingpod/features/profile/profile_page.dart';
 import 'package:flowingpod/features/settings/about_page.dart';
 import 'package:flowingpod/features/settings/settings_page.dart';
@@ -18,8 +22,38 @@ class _SignedOutAuth extends AuthController {
   AuthState build() => const AuthState(initialized: true);
 }
 
+/// Records effect requests without touching the playback engine.
+class _FakeEffects implements AudioEffects {
+  bool volumeLevelingEnabled = false;
+
+  @override
+  Future<EqualizerCapabilities> loadCapabilities() async =>
+      EqualizerCapabilities.reference;
+
+  @override
+  Future<void> setEqualizerCurve(
+    EqualizerCurve curve, {
+    double preampDecibels = 0,
+  }) async {}
+
+  @override
+  Future<void> setEqualizerEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setLoudnessEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setLoudnessGain(double gainDecibels) async {}
+
+  @override
+  Future<void> setVolumeLevelingEnabled(bool enabled) async {
+    volumeLevelingEnabled = enabled;
+  }
+}
+
 /// Signed-out NetEase client, so the profile's NetEase card needs no network.
 late NeteaseClient _netease;
+late _FakeEffects _effects;
 
 Future<SharedPreferences> _freshPrefs() async {
   SharedPreferences.setMockInitialValues({});
@@ -29,6 +63,7 @@ Future<SharedPreferences> _freshPrefs() async {
 Widget _wrap(SharedPreferences prefs, Widget home) => ProviderScope(
   overrides: [
     sharedPreferencesProvider.overrideWithValue(prefs),
+    audioEffectsProvider.overrideWithValue(_effects),
     authControllerProvider.overrideWith(_SignedOutAuth.new),
     neteaseClientProvider.overrideWithValue(_netease),
   ],
@@ -48,6 +83,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     _netease = await NeteaseClient.create(prefs);
+    _effects = _FakeEffects();
   });
 
   test('a stored brightness falls back to the system when unknown', () {
@@ -115,6 +151,64 @@ void main() {
           .value,
       isTrue,
     );
+  });
+
+  testWidgets('音量均衡 defaults to off, sits above 显示模式 and is persisted', (
+    tester,
+  ) async {
+    final prefs = await _freshPrefs();
+    _effects = _FakeEffects();
+    await tester.pumpWidget(_wrap(prefs, const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    final switchTile = find.widgetWithText(SwitchListTile, '音量均衡');
+    expect(tester.widget<SwitchListTile>(switchTile).value, isFalse);
+    expect(SettingsRepository(prefs).loadVolumeLeveling(), isFalse);
+    expect(
+      tester.getTopLeft(find.text('音量均衡')).dy,
+      lessThan(tester.getTopLeft(find.text('显示模式')).dy),
+    );
+
+    await tester.tap(switchTile);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<SwitchListTile>(switchTile).value, isTrue);
+    expect(SettingsRepository(prefs).loadVolumeLeveling(), isTrue);
+    expect(_effects.volumeLevelingEnabled, isTrue);
+
+    // A fresh provider container reads the stored value back.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(_wrap(prefs, const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<SwitchListTile>(find.widgetWithText(SwitchListTile, '音量均衡'))
+          .value,
+      isTrue,
+    );
+  });
+
+  testWidgets('the download folder sits below 音量均衡 and is persisted', (
+    tester,
+  ) async {
+    final prefs = await _freshPrefs();
+    await tester.pumpWidget(_wrap(prefs, const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('下载路径'), findsOneWidget);
+    expect(find.text(StoragePaths.defaultMusicDirectory), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('音量均衡')).dy,
+      lessThan(tester.getTopLeft(find.text('下载路径')).dy),
+    );
+
+    await SettingsRepository(prefs).setDownloadDirectory('/sdcard/Download');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(_wrap(prefs, const SettingsPage()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('/sdcard/Download'), findsOneWidget);
   });
 
   testWidgets('the theme dropdown defaults to the system and is persisted', (

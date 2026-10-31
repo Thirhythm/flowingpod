@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flowingpod/core/models/audio_effect_settings.dart';
 import 'package:flowingpod/core/models/equalizer_capabilities.dart';
+import 'package:flowingpod/core/models/equalizer_curve.dart';
 import 'package:flowingpod/core/models/equalizer_preset.dart';
 import 'package:flowingpod/data/services/audio_effects.dart';
 import 'package:flowingpod/state/providers.dart';
@@ -24,13 +25,11 @@ class EffectsState {
   EqualizerCapabilities get bandLayout =>
       capabilities ?? EqualizerCapabilities.reference;
 
-  /// Stored band gains matched to [bandLayout] and its gain range.
+  /// The stored curve sampled at the centres of [bandLayout], inside the gain
+  /// range the engine accepts.
   List<double> get bandGains {
+    final gains = settings.curve.sampleAt(bandLayout.centerFrequencies);
     final capabilities = this.capabilities;
-    final gains = EqualizerPreset.resampleGains(
-      settings.bandGains,
-      bandLayout.bands.length,
-    );
     if (capabilities == null) return gains;
     return [
       for (final gain in gains)
@@ -39,6 +38,9 @@ class EffectsState {
             .toDouble(),
     ];
   }
+
+  /// Attenuation keeping the boosted part of the curve from clipping.
+  double get preampDecibels => settings.preampDecibels;
 }
 
 /// Equalizer and loudness enhancer preferences, mirrored onto the engine.
@@ -63,42 +65,54 @@ class EffectsController extends Notifier<EffectsState> {
   Future<void> setEqualizerEnabled(bool enabled) =>
       _update(state.settings.copyWith(equalizerEnabled: enabled));
 
+  Future<void> setHeadroomEnabled(bool enabled) =>
+      _update(state.settings.copyWith(headroomEnabled: enabled));
+
   Future<void> setLoudnessEnabled(bool enabled) =>
       _update(state.settings.copyWith(loudnessEnabled: enabled));
 
   Future<void> setLoudnessGain(double gain) =>
       _update(state.settings.copyWith(loudnessGain: gain));
 
-  /// Switches to a named profile and applies its gains.
+  /// Switches to a named profile and applies its curve.
   Future<void> selectPreset(String presetId) {
     final preset = EqualizerPreset.byId(presetId);
     return _update(
-      state.settings.copyWith(
-        presetId: preset.id,
-        bandGains: preset.gainsFor(state.bandLayout.bands.length),
-      ),
+      state.settings.copyWith(presetId: preset.id, curve: preset.curve),
     );
   }
 
   /// Edits one band by hand, turning the profile into `自定义`.
+  ///
+  /// The edit is stored as a control point at the band frequency, so the rest
+  /// of the curve — and therefore the other bands — keeps its response.
   Future<void> setBandGain(int index, double gain) {
-    final gains = state.bandGains;
-    if (index < 0 || index >= gains.length) return Future.value();
-    final updated = List.of(gains);
-    updated[index] = gain;
+    final bands = state.bandLayout.bands;
+    if (index < 0 || index >= bands.length) return Future.value();
+    var curve = state.settings.curve;
+    if (curve.points.length < 2) {
+      // Pin the current response to the visible bands first; a lone control
+      // point would otherwise move every other band with the edited one.
+      final shown = state.bandGains;
+      curve = EqualizerCurve([
+        for (var i = 0; i < bands.length; i++)
+          EqualizerPoint(bands[i].centerFrequency, shown[i]),
+      ]);
+    }
     return _update(
       state.settings.copyWith(
         presetId: EqualizerPreset.customId,
-        bandGains: updated,
+        curve: curve.withGainAt(bands[index].centerFrequency, gain),
       ),
     );
   }
 
-  /// Restores the flat profile and the neutral loudness gain.
+  /// Restores the flat profile, the neutral loudness gain and headroom on.
   Future<void> reset() => _update(
     state.settings.copyWith(
       presetId: EqualizerPreset.flatId,
-      bandGains: EqualizerPreset.flat.gainsFor(state.bandLayout.bands.length),
+      curve: EqualizerPreset.flat.curve,
+      headroomEnabled: true,
       loudnessGain: 0.0,
     ),
   );
@@ -117,16 +131,21 @@ class EffectsController extends Notifier<EffectsState> {
     AudioEffectSettings settings,
   ) async {
     try {
+      // The curve goes first so engaging the equalizer fades in the requested
+      // response instead of the previous one.
+      await effects.setEqualizerCurve(
+        settings.curve,
+        preampDecibels: settings.preampDecibels,
+      );
       await effects.setEqualizerEnabled(settings.equalizerEnabled);
       await effects.setLoudnessEnabled(settings.loudnessEnabled);
       await effects.setLoudnessGain(settings.loudnessGain);
-      await effects.setBandGains(state.bandGains);
     } catch (_) {
       // The engine rejects effect calls on platforms without effect support.
     }
   }
 
-  /// Waits for the engine to report its band layout, then applies the gains.
+  /// Waits for the engine to report its band layout, then applies the curve.
   Future<void> _loadCapabilities(AudioEffects effects) async {
     EqualizerCapabilities capabilities;
     try {

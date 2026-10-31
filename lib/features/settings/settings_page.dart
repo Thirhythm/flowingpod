@@ -1,6 +1,7 @@
 import 'package:flowingpod/core/models/app_theme_mode.dart';
+import 'package:flowingpod/core/utils/storage_paths.dart';
+import 'package:flowingpod/data/services/storage_bridge.dart';
 import 'package:flowingpod/features/settings/about_page.dart';
-import 'package:flowingpod/features/settings/effects_page.dart';
 import 'package:flowingpod/state/settings_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,8 +13,10 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final autoOpenPlayer = ref.watch(autoOpenPlayerProvider);
+    final volumeLeveling = ref.watch(volumeLevelingProvider);
     final themeMode = ref.watch(themeModeProvider);
     final dynamicColor = ref.watch(dynamicColorProvider);
+    final downloadDirectory = ref.watch(downloadDirectoryProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
@@ -28,13 +31,25 @@ class SettingsPage extends ConsumerWidget {
                 ref.read(autoOpenPlayerProvider.notifier).setEnabled(value),
           ),
           const Divider(height: 1),
+          SwitchListTile(
+            secondary: const Icon(Icons.graphic_eq_rounded),
+            title: const Text('音量均衡'),
+            subtitle: const Text('播放不同内容时保持响度一致'),
+            value: volumeLeveling,
+            onChanged: (value) =>
+                ref.read(volumeLevelingProvider.notifier).setEnabled(value),
+          ),
+          const Divider(height: 1),
           ListTile(
-            leading: const Icon(Icons.equalizer_rounded),
-            title: const Text('均衡器 (BETA)'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const EffectsPage()),
+            leading: const Icon(Icons.folder_outlined),
+            title: const Text('下载路径'),
+            subtitle: Text(
+              downloadDirectory ?? StoragePaths.defaultMusicDirectory,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _pickDownloadDirectory(context, ref),
           ),
           const Divider(height: 1),
           ListTile(
@@ -80,4 +95,14 @@ class SettingsPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _pickDownloadDirectory(BuildContext context, WidgetRef ref) async {
+  final selected = await StorageBridge.pickDirectory();
+  if (selected == null || selected.isEmpty) return;
+  await ref.read(downloadDirectoryProvider.notifier).setDirectory(selected);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('下载路径已更新')));
 }

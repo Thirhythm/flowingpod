@@ -1,16 +1,23 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flowingpod/core/models/media_track.dart';
+import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/core/utils/formatters.dart';
+import 'package:flowingpod/data/services/download_service.dart';
+import 'package:flowingpod/features/settings/effects_page.dart';
 import 'package:flowingpod/state/library_controllers.dart';
 import 'package:flowingpod/state/player_controller.dart';
+import 'package:flowingpod/state/providers.dart';
 import 'package:flowingpod/state/settings_controller.dart';
 import 'package:flowingpod/widgets/cover_image.dart';
+import 'package:flowingpod/widgets/download_progress_dialog.dart';
 import 'package:flowingpod/widgets/favorite_sheet.dart';
 import 'package:flowingpod/widgets/marquee_text.dart';
 import 'package:flowingpod/widgets/netease_quality_sheet.dart';
 import 'package:flowingpod/widgets/play_mode_button.dart';
 import 'package:flowingpod/widgets/playlist_sheet.dart';
+import 'package:flowingpod/widgets/storage_permission_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -116,43 +123,136 @@ class PlayerPage extends ConsumerWidget {
   }
 }
 
-/// Secondary actions shown right above the progress bar: the favourite toggle
-/// and, for NetEase songs, the sound-quality picker.
-class _PlayerActionBar extends ConsumerWidget {
+/// Secondary actions shown right above the progress bar: the equalizer, the
+/// favourite toggle, the download action and, for NetEase songs, the
+/// sound-quality picker.
+class _PlayerActionBar extends ConsumerStatefulWidget {
   const _PlayerActionBar({required this.track});
 
   final MediaTrack track;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PlayerActionBar> createState() => _PlayerActionBarState();
+}
+
+class _PlayerActionBarState extends ConsumerState<_PlayerActionBar> {
+  bool _downloading = false;
+
+  Future<void> _download() async {
+    if (_downloading) return;
+    final track = widget.track;
+
+    if (!await ensureStoragePermission(context)) return;
+    if (!mounted) return;
+
+    NeteaseQuality? quality;
+    if (track.isNetease) {
+      quality = await NeteaseQualitySheet.showForDownload(
+        context,
+        track: track,
+      );
+      if (quality == null || !mounted) return;
+    }
+
+    setState(() => _downloading = true);
+    final progress = ValueNotifier<DownloadProgress?>(null);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) =>
+            DownloadProgressDialog(title: track.displayTitle, progress: progress),
+      ),
+    );
+
+    String message;
+    try {
+      final result = await ref
+          .read(downloadServiceProvider)
+          .download(
+            track,
+            quality: quality,
+            directory: ref.read(downloadDirectoryProvider),
+            onProgress: (value) => progress.value = value,
+          );
+      message = '已保存到 ${result.file.path}';
+    } on DownloadException catch (error) {
+      message = error.message;
+    } catch (_) {
+      message = '下载失败，请稍后重试';
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    setState(() => _downloading = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final track = widget.track;
     final favoured = ref.watch(trackFavouredProvider(track));
     final quality = ref.watch(neteaseQualityProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
-        // NetEase songs split the two actions, Bilibili entries keep the lone
-        // favourite next to the edge.
+        // NetEase songs split the actions, Bilibili entries keep the lone
+        // group next to the edge.
         mainAxisAlignment: track.isNetease
             ? MainAxisAlignment.spaceBetween
             : MainAxisAlignment.end,
         children: [
-          if (track.isNetease)
-            TextButton.icon(
-              onPressed: () => NeteaseQualitySheet.show(context, track: track),
-              icon: const Icon(Icons.high_quality_rounded, size: 20),
-              label: Text(quality.label),
-            ),
-          if (track.canFavorite)
-            IconButton(
-              tooltip: favoured ? '已收藏' : '收藏',
-              icon: Icon(
-                favoured
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                color: favoured ? Theme.of(context).colorScheme.primary : null,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (track.isNetease)
+                TextButton.icon(
+                  onPressed: () =>
+                      NeteaseQualitySheet.show(context, track: track),
+                  icon: const Icon(Icons.high_quality_rounded, size: 20),
+                  label: Text(quality.label),
+                ),
+              IconButton(
+                tooltip: '下载',
+                onPressed: _downloading ? null : _download,
+                icon: _downloading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_rounded),
               ),
-              onPressed: () => FavoriteSheet.show(context, ref, track: track),
-            ),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: '均衡器',
+                icon: const Icon(Icons.equalizer_rounded),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const EffectsPage()),
+                ),
+              ),
+              if (track.canFavorite)
+                IconButton(
+                  tooltip: favoured ? '已收藏' : '收藏',
+                  icon: Icon(
+                    favoured
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: favoured
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                  ),
+                  onPressed: () =>
+                      FavoriteSheet.show(context, ref, track: track),
+                ),
+            ],
+          ),
         ],
       ),
     );

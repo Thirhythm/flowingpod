@@ -163,4 +163,24 @@ void main() {
 
     expect(find.byIcon(Icons.high_quality_rounded), findsNothing);
   });
+
+  testWidgets('the download action sits right of the quality picker', (
+    tester,
+  ) async {
+    await _pumpPlayer(tester, player: _FakeNeteasePlayer.new);
+
+    expect(find.byIcon(Icons.download_rounded), findsOneWidget);
+    expect(
+      tester.getCenter(find.byIcon(Icons.download_rounded)).dx,
+      greaterThan(tester.getCenter(find.byIcon(Icons.high_quality_rounded)).dx),
+    );
+  });
+
+  testWidgets('a Bilibili track also offers the download action', (
+    tester,
+  ) async {
+    await _pumpPlayer(tester);
+
+    expect(find.byIcon(Icons.download_rounded), findsOneWidget);
+  });
 }

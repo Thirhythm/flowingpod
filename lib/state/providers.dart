@@ -11,6 +11,7 @@ import 'package:flowingpod/data/repositories/search_repository.dart';
 import 'package:flowingpod/data/repositories/settings_repository.dart';
 import 'package:flowingpod/data/repositories/video_repository.dart';
 import 'package:flowingpod/data/services/audio_effects.dart';
+import 'package:flowingpod/data/services/download_service.dart';
 import 'package:flowingpod/data/services/player_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -75,6 +76,15 @@ final Provider<HistoryRepository> historyRepositoryProvider =
 final Provider<NeteaseRepository> neteaseRepositoryProvider =
     Provider<NeteaseRepository>(
       (ref) => NeteaseRepository(ref.watch(neteaseClientProvider)),
+    );
+
+/// Resolves and saves downloadable audio files.
+final Provider<DownloadService> downloadServiceProvider =
+    Provider<DownloadService>(
+      (ref) => DownloadService(
+        ref.watch(videoRepositoryProvider),
+        ref.watch(neteaseRepositoryProvider),
+      ),
     );
 
 /// On-device play history, used while no Bilibili session is active.

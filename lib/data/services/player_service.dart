@@ -7,7 +7,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flowingpod/core/api/api_exception.dart';
 import 'package:flowingpod/core/api/bili_client.dart';
 import 'package:flowingpod/core/models/equalizer_capabilities.dart';
-import 'package:flowingpod/core/models/equalizer_preset.dart';
+import 'package:flowingpod/core/models/equalizer_curve.dart';
 import 'package:flowingpod/core/models/media_track.dart';
 import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/core/models/play_mode.dart';
@@ -15,8 +15,10 @@ import 'package:flowingpod/core/models/player_state.dart';
 import 'package:flowingpod/core/utils/image_url.dart';
 import 'package:flowingpod/core/utils/secure_url.dart';
 import 'package:flowingpod/data/repositories/netease_repository.dart';
+import 'package:flowingpod/data/repositories/settings_repository.dart';
 import 'package:flowingpod/data/repositories/video_repository.dart';
 import 'package:flowingpod/data/services/audio_effects.dart';
+import 'package:flutter/services.dart';
 // just_audio also exports a `PlayerState`, which collides with our model.
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,6 +45,8 @@ class BiliAudioService extends BaseAudioHandler
        _prefs = preferences {
     unawaited(_configureSession());
     _restore();
+    _volumeLevelingEnabled =
+        _prefs.getBool(SettingsRepository.volumeLevelingKey) ?? false;
     // Brings the engine up silently so the equalizer reports its band layout
     // (and any queued band gains can be applied) before anything is played.
     _warmUp = _warmUpEngine();
@@ -53,12 +57,31 @@ class BiliAudioService extends BaseAudioHandler
       _player.errorStream.listen(_onPlaybackError),
       _player.processingStateStream.listen(_onProcessingState),
       _player.playingStream.listen((_) => _emit()),
+      // Audio effects attach to the session, which is created (and may change)
+      // after playback starts.
+      _player.androidAudioSessionIdStream.distinct().listen((sessionId) {
+        _audioSessionId = sessionId;
+        unawaited(_syncVolumeLeveling());
+        unawaited(_syncNativeEqualizer());
+      }),
     ]);
+    unawaited(_syncVolumeLeveling());
   }
 
   static const String _queueKey = 'player_queue_v1';
   static const String _indexKey = 'player_index_v1';
   static const String _modeKey = 'player_mode_v1';
+
+  /// Native loudness leveling effect, created on the player's audio session.
+  static const MethodChannel _volumeLevelingChannel = MethodChannel(
+    'thirhythm.flowingpod/volume_leveling',
+  );
+
+  /// Native ten-band equalizer, sharing the effect behind
+  /// [_volumeLevelingChannel].
+  static const MethodChannel _equalizerChannel = MethodChannel(
+    'thirhythm.flowingpod/equalizer',
+  );
 
   static const Map<String, String> _streamHeaders = {
     'User-Agent': BiliClient.userAgent,
@@ -109,11 +132,27 @@ class BiliAudioService extends BaseAudioHandler
   /// Equalizer bands, filled once the platform reports its band layout.
   List<AndroidEqualizerBand> _equalizerBands = const [];
 
-  /// Gain range of the platform equalizer, `null` until its layout is known.
+  /// Gain range of the platform equalizer, `null` until its layout is known or
+  /// while the native ten-band effect is used.
   AndroidEqualizerParameters? _equalizerParameters;
 
-  /// Last requested band gains, kept until there are bands to apply them to.
-  List<double> _bandGains = const [];
+  /// Whether equalization runs on the native ten-band effect, `null` until the
+  /// engine has been probed.
+  bool? _useNativeEqualizer;
+
+  /// Cached band layout, so the settings page and the warm-up share one probe.
+  Future<EqualizerCapabilities>? _capabilitiesFuture;
+
+  /// Latest audio session reported by the engine.
+  int? _audioSessionId;
+
+  /// Frequency response requested by the UI, kept until there are bands to
+  /// apply it to.
+  EqualizerCurve _curve = EqualizerCurve.flat;
+
+  /// Attenuation added to every band after the curve is sampled, leaving
+  /// headroom for its boosts.
+  double _preampDecibels = 0.0;
 
   /// Gains currently written to the platform bands; the fade source.
   List<double> _appliedGains = const [];
@@ -145,6 +184,9 @@ class BiliAudioService extends BaseAudioHandler
   /// Whether the engine is loaded with the current queue entry. `false` while
   /// it still holds the silent warm-up source or nothing at all.
   bool _trackLoaded = false;
+
+  /// Whether the native volume leveling effect should modify the output.
+  bool _volumeLevelingEnabled = false;
 
   /// Completes when the silent warm-up source and the equalizer layout are
   /// ready. Playback awaits it so a slow warm-up can never overwrite a track.
@@ -374,6 +416,12 @@ class BiliAudioService extends BaseAudioHandler
       await subscription.cancel();
     }
     await _player.dispose();
+    try {
+      // Releases the shared native effect (leveling + equalizer).
+      await _equalizerChannel.invokeMethod<void>('release');
+    } catch (_) {
+      // Missing on non-Android platforms.
+    }
     await _stateController.close();
   }
 
@@ -422,11 +470,25 @@ class BiliAudioService extends BaseAudioHandler
   // --- Sound effects ------------------------------------------------------
 
   @override
-  Future<EqualizerCapabilities> loadCapabilities() async {
+  Future<EqualizerCapabilities> loadCapabilities() =>
+      _capabilitiesFuture ??= _loadCapabilities();
+
+  /// Picks the band layout once: the native ten-band effect where the platform
+  /// supports it, the device equalizer otherwise.
+  Future<EqualizerCapabilities> _loadCapabilities() async {
+    if (await _nativeEqualizerSupported()) {
+      _useNativeEqualizer = true;
+      _equalizerParameters = null;
+      _equalizerBands = const [];
+      await _applyEqualizerState();
+      return EqualizerCapabilities.nativeTenBand;
+    }
+
+    _useNativeEqualizer = false;
     final parameters = await _equalizer.parameters;
     _equalizerParameters = parameters;
     _equalizerBands = parameters.bands;
-    await _applyBandGains();
+    await _applyEqualizerState();
     return EqualizerCapabilities(
       minDecibels: parameters.minDecibels,
       maxDecibels: parameters.maxDecibels,
@@ -441,6 +503,49 @@ class BiliAudioService extends BaseAudioHandler
     );
   }
 
+  /// Probes the native effect, waiting briefly for the engine to report its
+  /// audio session. A failed probe keeps the device equalizer instead.
+  Future<bool> _nativeEqualizerSupported() async {
+    try {
+      final supported =
+          await _equalizerChannel.invokeMethod<bool>('isSupported') ?? false;
+      if (!supported) return false;
+      final sessionId = await _waitForAudioSession();
+      if (sessionId == null) return false;
+      return await _equalizerChannel.invokeMethod<bool>('probe', {
+            'sessionId': sessionId,
+          }) ??
+          false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  Future<int?> _waitForAudioSession() async {
+    final current = _audioSessionId ?? _player.androidAudioSessionId;
+    if (current != null) {
+      _audioSessionId = current;
+      return current;
+    }
+    try {
+      final sessionId = await _player.androidAudioSessionIdStream
+          .firstWhere((sessionId) => sessionId != null)
+          .timeout(const Duration(seconds: 2));
+      _audioSessionId = sessionId;
+      return sessionId;
+    } on TimeoutException {
+      return null;
+    }
+  }
+
+  /// Applies the stored curve and enable request once the band path is known.
+  Future<void> _applyEqualizerState() async {
+    await _applyBandGains();
+    if (_equalizerEnabled) await setEqualizerEnabled(true);
+  }
+
   /// Engages or bypasses the equalizer without a click.
   ///
   /// Disabling fades the band gains to flat before bypassing, engaging enables
@@ -450,68 +555,138 @@ class BiliAudioService extends BaseAudioHandler
   Future<void> setEqualizerEnabled(bool enabled) async {
     if (_equalizerEnabled == enabled && _equalizerEngaged == enabled) return;
     _equalizerEnabled = enabled;
+    // The band path is still being probed; [_applyEqualizerState] runs later.
+    if (_useNativeEqualizer == null) return;
     final token = ++_bandFadeToken;
     if (enabled) {
       if (!_equalizerEngaged) {
         // Bypassed, so landing on flat gains is inaudible.
         await _writeBands(_flatGains());
         if (token != _bandFadeToken) return;
-        await _equalizer.setEnabled(true);
-        _equalizerEngaged = true;
+        await _setEqualizerEngaged(true);
       }
       if (token != _bandFadeToken) return;
-      await _fadeBandsTo(_bandGains, token);
+      await _fadeBandsTo(_targetGains(), token);
     } else if (_equalizerEngaged) {
       final reached = await _fadeBandsTo(_flatGains(), token);
       if (!reached || token != _bandFadeToken) return;
-      await _equalizer.setEnabled(false);
-      _equalizerEngaged = false;
+      await _setEqualizerEngaged(false);
+    }
+  }
+
+  /// Bypasses or engages the band path chosen for this session.
+  Future<void> _setEqualizerEngaged(bool engaged) async {
+    if (_useNativeEqualizer == true) {
+      _equalizerEngaged = engaged;
+      await _syncNativeEqualizer();
+    } else {
+      await _equalizer.setEnabled(engaged);
+      _equalizerEngaged = engaged;
     }
   }
 
   @override
-  Future<void> setBandGains(List<double> gainsDecibels) async {
-    _bandGains = List.of(gainsDecibels);
+  Future<void> setEqualizerCurve(
+    EqualizerCurve curve, {
+    double preampDecibels = 0,
+  }) async {
+    _curve = curve;
+    _preampDecibels = preampDecibels;
     await _applyBandGains();
   }
 
-  /// Pushes the requested gains onto the equalizer bands. Before the platform
-  /// reports its layout there is nothing to push to, so the values are applied
-  /// once [loadCapabilities] (or the engine itself) reveals the bands.
+  /// Pushes the requested curve onto the chosen bands. Before the engine
+  /// reports its layout there is nothing to push to, so the curve is applied
+  /// once [loadCapabilities] reveals the bands.
   ///
   /// While the equalizer is engaged the gains fade to their new values instead
   /// of jumping, keeping sliders and preset switches click free as well.
   Future<void> _applyBandGains() async {
-    if (_equalizerParameters == null) return;
+    final useNative = _useNativeEqualizer;
+    if (useNative == null) return;
+    if (!useNative && _equalizerParameters == null) return;
+    // Bumping the token also cancels a transition still fading toward the
+    // previous curve.
+    final token = ++_bandFadeToken;
+    final target = _targetGains();
+    if (target.isEmpty) return;
     if (_equalizerEngaged && !_disposed) {
-      await _fadeBandsTo(_bandGains, ++_bandFadeToken);
+      await _fadeBandsTo(target, token);
     } else {
       // Bypassed: the write is inaudible and engaging fades in from flat.
-      await _writeBands(_gainsOnBands(_bandGains));
+      await _writeBands(target);
     }
   }
 
-  /// The requested gains matched to the engine bands and their gain range.
-  List<double> _gainsOnBands(List<double> gainsDecibels) {
-    final parameters = _equalizerParameters!;
+  /// The requested curve sampled at the chosen band frequencies and shifted by
+  /// the preamp, kept inside the gain range the platform accepts.
+  List<double> _targetGains() {
+    if (_useNativeEqualizer == true) {
+      final capabilities = EqualizerCapabilities.nativeTenBand;
+      final minDecibels = capabilities.minDecibels;
+      final maxDecibels = capabilities.maxDecibels;
+      return [
+        for (final band in capabilities.bands)
+          (_curve.gainAt(band.centerFrequency).clamp(minDecibels, maxDecibels) +
+                  _preampDecibels)
+              .clamp(minDecibels, maxDecibels)
+              .toDouble(),
+      ];
+    }
+    final parameters = _equalizerParameters;
+    if (parameters == null) return const [];
+    final minDecibels = parameters.minDecibels;
+    final maxDecibels = parameters.maxDecibels;
     return [
-      for (final gain in EqualizerPreset.resampleGains(
-        gainsDecibels,
-        _equalizerBands.length,
-      ))
-        gain.clamp(parameters.minDecibels, parameters.maxDecibels).toDouble(),
+      for (final band in _equalizerBands)
+        (_curve.gainAt(band.centerFrequency).clamp(minDecibels, maxDecibels) +
+                _preampDecibels)
+            .clamp(minDecibels, maxDecibels)
+            .toDouble(),
     ];
   }
 
   /// The neutral gains: with them the effect output matches its bypassed one.
-  List<double> _flatGains() => List.filled(_equalizerBands.length, 0.0);
+  List<double> _flatGains() {
+    final count = _useNativeEqualizer == true
+        ? EqualizerCapabilities.nativeTenBand.bands.length
+        : _equalizerBands.length;
+    return List.filled(count, 0.0);
+  }
 
   /// Writes [gains] (already matched to the bands) in one go.
   Future<void> _writeBands(List<double> gains) async {
-    for (var i = 0; i < _equalizerBands.length; i++) {
-      await _equalizerBands[i].setGain(gains[i]);
+    if (_useNativeEqualizer == true) {
+      await _writeNativeBands(gains);
+    } else {
+      for (var i = 0; i < _equalizerBands.length; i++) {
+        await _equalizerBands[i].setGain(gains[i]);
+      }
     }
     _appliedGains = List.of(gains);
+  }
+
+  /// Sends the band gains to the native effect. The native side keeps the
+  /// request while the engine has no session yet, and the session listener
+  /// retries once one appears.
+  Future<void> _writeNativeBands(List<double> gains) async {
+    try {
+      await _equalizerChannel.invokeMethod<void>('configure', {
+        'enabled': _equalizerEngaged,
+        'sessionId': _audioSessionId,
+        'gains': gains,
+      });
+    } catch (_) {
+      // Missing on non-Android platforms; the path is never chosen there.
+    }
+  }
+
+  /// Re-sends the equalizer state after the engine reported a new session.
+  Future<void> _syncNativeEqualizer() async {
+    if (_useNativeEqualizer != true || _disposed) return;
+    final flat = _flatGains();
+    final gains = _appliedGains.length == flat.length ? _appliedGains : flat;
+    await _writeNativeBands(gains);
   }
 
   /// Fades the band gains from their current values to [target].
@@ -520,25 +695,24 @@ class BiliAudioService extends BaseAudioHandler
   /// the service is gone before the target was reached; the caller must then
   /// leave the effect state alone.
   Future<bool> _fadeBandsTo(List<double> target, int token) async {
-    if (_equalizerParameters == null || _equalizerBands.isEmpty) return true;
-    final end = _gainsOnBands(target);
-    final start = _appliedGains.length == end.length
+    if (target.isEmpty) return true;
+    final start = _appliedGains.length == target.length
         ? List.of(_appliedGains)
-        : List.of(end);
+        : List.of(target);
     for (var step = 1; step <= _effectFadeSteps; step++) {
       await Future<void>.delayed(_effectFadeStep);
       if (_disposed || token != _bandFadeToken) return false;
       await _writeBands([
-        for (var i = 0; i < end.length; i++)
-          start[i] + (end[i] - start[i]) * step / _effectFadeSteps,
+        for (var i = 0; i < target.length; i++)
+          start[i] + (target[i] - start[i]) * step / _effectFadeSteps,
       ]);
     }
     return true;
   }
 
   /// Learns the equalizer layout in the background so the settings page can
-  /// show the device bands right away. The silent source is never played and
-  /// is replaced by [_loadCurrent] on the first playback.
+  /// show the bands right away. The silent source is never played and is
+  /// replaced by [_loadCurrent] on the first playback.
   Future<void> _warmUpEngine() async {
     try {
       await _player.setAudioSource(
@@ -600,6 +774,29 @@ class BiliAudioService extends BaseAudioHandler
       _appliedLoudnessGain = gain;
     }
     return true;
+  }
+
+  @override
+  Future<void> setVolumeLevelingEnabled(bool enabled) async {
+    if (_volumeLevelingEnabled == enabled) return;
+    _volumeLevelingEnabled = enabled;
+    await _syncVolumeLeveling();
+  }
+
+  /// Mirrors the preference onto the native effect.
+  ///
+  /// The native side keeps the request while no audio session exists yet and
+  /// applies it as soon as the engine reports one; platforms without the
+  /// effect simply keep playing unmodified.
+  Future<void> _syncVolumeLeveling() async {
+    try {
+      await _volumeLevelingChannel.invokeMethod<void>('setEnabled', {
+        'enabled': _volumeLevelingEnabled,
+        'sessionId': _player.androidAudioSessionId,
+      });
+    } catch (_) {
+      // Missing on non-Android platforms and on engines that refuse effects.
+    }
   }
 
   // --- Internal playback --------------------------------------------------
@@ -667,9 +864,7 @@ class BiliAudioService extends BaseAudioHandler
       await _player.setAudioSource(
         AudioSource.uri(
           uri,
-          headers: resolved.isNetease
-              ? _neteaseStreamHeaders
-              : _streamHeaders,
+          headers: resolved.isNetease ? _neteaseStreamHeaders : _streamHeaders,
         ),
       );
       if (token != _loadToken) return;
@@ -722,10 +917,7 @@ class BiliAudioService extends BaseAudioHandler
       if (fallback != null) result = fallback;
     }
     if (result == null || result.url.isEmpty) {
-      throw const BiliApiException(
-        code: -1,
-        message: '该歌曲暂时无法播放，可能需要网易云会员',
-      );
+      throw const BiliApiException(code: -1, message: '该歌曲暂时无法播放，可能需要网易云会员');
     }
     return result.url;
   }

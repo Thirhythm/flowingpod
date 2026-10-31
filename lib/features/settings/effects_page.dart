@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flowingpod/core/models/equalizer_capabilities.dart';
+import 'package:flowingpod/core/models/equalizer_curve.dart';
 import 'package:flowingpod/core/models/equalizer_preset.dart';
 import 'package:flowingpod/core/utils/formatters.dart';
 import 'package:flowingpod/state/effects_controller.dart';
@@ -37,13 +40,31 @@ class EffectsPage extends ConsumerWidget {
             enabled: settings.equalizerEnabled,
             onSelected: controller.selectPreset,
           ),
-          const SectionHeader(title: '频段', action: null),
+          SectionHeader(
+            title: '频段（${state.bandLayout.bands.length} 段）',
+            action: null,
+          ),
+          _ResponseCurve(
+            capabilities: state.bandLayout,
+            curve: settings.curve,
+            enabled: settings.equalizerEnabled,
+          ),
           _BandEditor(
             capabilities: state.bandLayout,
             gains: state.bandGains,
-            engineReady: state.engineReady,
             enabled: settings.equalizerEnabled,
             onChanged: controller.setBandGain,
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.shield_outlined),
+            title: const Text('自动预增益'),
+            subtitle: Text(
+              settings.headroomEnabled
+                  ? '按曲线峰值自动衰减（当前 ${Formatters.decibels(state.preampDecibels)}），避免强增益造成失真'
+                  : '已关闭，提升频段时可能出现削波失真',
+            ),
+            value: settings.headroomEnabled,
+            onChanged: controller.setHeadroomEnabled,
           ),
           const Divider(height: 1),
           SwitchListTile(
@@ -104,21 +125,161 @@ class _PresetPicker extends StatelessWidget {
   }
 }
 
+/// Draws the response the equalizer applies, with a marker on every band.
+class _ResponseCurve extends StatelessWidget {
+  const _ResponseCurve({
+    required this.capabilities,
+    required this.curve,
+    required this.enabled,
+  });
+
+  final EqualizerCapabilities capabilities;
+  final EqualizerCurve curve;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: enabled ? 1 : 0.4,
+        child: Semantics(
+          label: '频响曲线',
+          child: SizedBox(
+            height: 112,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _ResponseCurvePainter(
+                capabilities: capabilities,
+                curve: curve,
+                lineColor: scheme.primary,
+                fillColor: scheme.primary.withValues(alpha: 0.14),
+                gridColor: scheme.outlineVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResponseCurvePainter extends CustomPainter {
+  const _ResponseCurvePainter({
+    required this.capabilities,
+    required this.curve,
+    required this.lineColor,
+    required this.fillColor,
+    required this.gridColor,
+  });
+
+  final EqualizerCapabilities capabilities;
+  final EqualizerCurve curve;
+  final Color lineColor;
+  final Color fillColor;
+  final Color gridColor;
+
+  /// Painted frequency bounds; bands outside them are drawn at the edges.
+  static const double _minFrequency = 20;
+  static const double _maxFrequency = 20000;
+
+  /// How many points the curve is sampled at between the bounds.
+  static const int _samples = 128;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bands = capabilities.bands;
+    final span = capabilities.maxDecibels - capabilities.minDecibels;
+    if (size.isEmpty || bands.isEmpty || span <= 0) return;
+
+    double x(double hertz) =>
+        size.width *
+        (math.log(hertz.clamp(_minFrequency, _maxFrequency) / _minFrequency) /
+            math.log(_maxFrequency / _minFrequency));
+    double y(double decibels) =>
+        size.height *
+        (1 -
+            (decibels.clamp(
+                      capabilities.minDecibels,
+                      capabilities.maxDecibels,
+                    ) -
+                    capabilities.minDecibels) /
+                span);
+
+    final gridPaint = Paint()
+      ..color = gridColor
+      ..strokeWidth = 1;
+    // Guide line per band, then the neutral 0 dB line on top of them.
+    for (final band in bands) {
+      final bandX = x(band.centerFrequency);
+      canvas.drawLine(Offset(bandX, 0), Offset(bandX, size.height), gridPaint);
+    }
+    final zeroY = y(0);
+    canvas.drawLine(Offset(0, zeroY), Offset(size.width, zeroY), gridPaint);
+
+    final curvePath = Path();
+    final fillPath = Path();
+    for (var i = 0; i < _samples; i++) {
+      final hertz =
+          _minFrequency *
+          math.pow(_maxFrequency / _minFrequency, i / (_samples - 1));
+      final point = Offset(x(hertz), y(curve.gainAt(hertz)));
+      if (i == 0) {
+        curvePath.moveTo(point.dx, point.dy);
+        fillPath
+          ..moveTo(point.dx, zeroY)
+          ..lineTo(point.dx, point.dy);
+      } else {
+        curvePath.lineTo(point.dx, point.dy);
+        fillPath.lineTo(point.dx, point.dy);
+      }
+    }
+    fillPath
+      ..lineTo(size.width, zeroY)
+      ..close();
+
+    canvas.drawPath(fillPath, Paint()..color = fillColor);
+    canvas.drawPath(
+      curvePath,
+      Paint()
+        ..color = lineColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    final dotPaint = Paint()..color = lineColor;
+    for (final band in bands) {
+      canvas.drawCircle(
+        Offset(x(band.centerFrequency), y(curve.gainAt(band.centerFrequency))),
+        3,
+        dotPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ResponseCurvePainter oldDelegate) =>
+      oldDelegate.curve != curve ||
+      oldDelegate.capabilities != capabilities ||
+      oldDelegate.lineColor != lineColor ||
+      oldDelegate.fillColor != fillColor ||
+      oldDelegate.gridColor != gridColor;
+}
+
 class _BandEditor extends StatelessWidget {
   const _BandEditor({
     required this.capabilities,
     required this.gains,
-    required this.engineReady,
     required this.enabled,
     required this.onChanged,
   });
 
   final EqualizerCapabilities capabilities;
   final List<double> gains;
-
-  /// Whether [capabilities] comes from the engine instead of the reference
-  /// layout shown before the engine reports anything.
-  final bool engineReady;
   final bool enabled;
   final void Function(int index, double gain) onChanged;
 
@@ -126,45 +287,70 @@ class _BandEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final labelStyle = Theme.of(context).textTheme.labelSmall
         ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
-    return Column(
-      children: [
-        SizedBox(
-          height: 240,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final (index, band) in capabilities.bands.indexed)
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: RotatedBox(
-                          quarterTurns: 3,
-                          child: Slider(
-                            min: capabilities.minDecibels,
-                            max: capabilities.maxDecibels,
-                            value: gains[index],
-                            onChanged: enabled
-                                ? (gain) => onChanged(index, gain)
-                                : null,
+    // Five bands spread over the full width; a ten-band layout gets a
+    // scrollable editor so each slider keeps a usable size.
+    const minBandWidth = 44.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bandWidth = math.max(
+          minBandWidth,
+          constraints.maxWidth / capabilities.bands.length,
+        );
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: bandWidth * capabilities.bands.length,
+            height: 240,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (index, band) in capabilities.bands.indexed)
+                  SizedBox(
+                    width: bandWidth,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: RotatedBox(
+                            quarterTurns: 3,
+                            child: Slider(
+                              min: capabilities.minDecibels,
+                              max: capabilities.maxDecibels,
+                              // Half-decibel steps keep the labels readable.
+                              divisions:
+                                  ((capabilities.maxDecibels -
+                                              capabilities.minDecibels) *
+                                          2)
+                                      .round(),
+                              label: Formatters.decibels(gains[index]),
+                              value: gains[index],
+                              onChanged: enabled
+                                  ? (gain) => onChanged(index, gain)
+                                  : null,
+                            ),
                           ),
                         ),
-                      ),
-                      Text(
-                        Formatters.frequency(band.centerFrequency),
-                        style: labelStyle,
-                      ),
-                      Text(
-                        Formatters.decibels(gains[index]),
-                        style: labelStyle,
-                      ),
-                    ],
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            Formatters.frequency(band.centerFrequency),
+                            style: labelStyle,
+                          ),
+                        ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            Formatters.decibels(gains[index]),
+                            style: labelStyle,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

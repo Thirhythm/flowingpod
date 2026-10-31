@@ -53,6 +53,66 @@ class EqualizerCapabilities {
     ],
   );
 
+  /// The ten fixed bands of the native dynamics equalizer used on Android,
+  /// where the platform effect allows a fixed layout instead of the device
+  /// equalizer's own bands.
+  static const EqualizerCapabilities nativeTenBand = EqualizerCapabilities(
+    minDecibels: -12,
+    maxDecibels: 12,
+    bands: [
+      EqualizerBand(
+        lowerFrequency: 20,
+        upperFrequency: 44,
+        centerFrequency: 31,
+      ),
+      EqualizerBand(
+        lowerFrequency: 44,
+        upperFrequency: 88,
+        centerFrequency: 62,
+      ),
+      EqualizerBand(
+        lowerFrequency: 88,
+        upperFrequency: 177,
+        centerFrequency: 125,
+      ),
+      EqualizerBand(
+        lowerFrequency: 177,
+        upperFrequency: 354,
+        centerFrequency: 250,
+      ),
+      EqualizerBand(
+        lowerFrequency: 354,
+        upperFrequency: 707,
+        centerFrequency: 500,
+      ),
+      EqualizerBand(
+        lowerFrequency: 707,
+        upperFrequency: 1414,
+        centerFrequency: 1000,
+      ),
+      EqualizerBand(
+        lowerFrequency: 1414,
+        upperFrequency: 2828,
+        centerFrequency: 2000,
+      ),
+      EqualizerBand(
+        lowerFrequency: 2828,
+        upperFrequency: 5657,
+        centerFrequency: 4000,
+      ),
+      EqualizerBand(
+        lowerFrequency: 5657,
+        upperFrequency: 11314,
+        centerFrequency: 8000,
+      ),
+      EqualizerBand(
+        lowerFrequency: 11314,
+        upperFrequency: 20000,
+        centerFrequency: 16000,
+      ),
+    ],
+  );
+
   /// Smallest band gain the engine accepts.
   final double minDecibels;
 
@@ -61,4 +121,9 @@ class EqualizerCapabilities {
 
   /// Bands ordered from low to high frequency.
   final List<EqualizerBand> bands;
+
+  /// Centre frequencies of [bands], low to high.
+  List<double> get centerFrequencies => [
+    for (final band in bands) band.centerFrequency,
+  ];
 }
