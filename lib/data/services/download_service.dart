@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flowingpod/core/api/api_exception.dart';
 import 'package:flowingpod/core/api/bili_client.dart';
 import 'package:flowingpod/core/models/audio_stream.dart';
@@ -9,6 +8,7 @@ import 'package:flowingpod/core/models/netease_quality.dart';
 import 'package:flowingpod/core/utils/storage_paths.dart';
 import 'package:flowingpod/data/repositories/netease_repository.dart';
 import 'package:flowingpod/data/repositories/video_repository.dart';
+import 'package:flowingpod/data/services/download_bridge.dart';
 
 /// Raised when a track cannot be downloaded; [message] is user facing.
 class DownloadException implements Exception {
@@ -20,29 +20,16 @@ class DownloadException implements Exception {
   String toString() => message;
 }
 
-class DownloadProgress {
-  const DownloadProgress({required this.received, required this.total});
-
-  final int received;
-
-  /// Total bytes reported by the server, or `-1` when unknown.
-  final int total;
-
-  double? get fraction =>
-      total > 0 ? (received / total).clamp(0.0, 1.0) : null;
-}
-
-class DownloadedTrack {
-  const DownloadedTrack({
-    required this.file,
-    required this.qualityLabel,
-  });
+/// A download handed to the Android service; progress is shown by a
+/// notification, so no further work happens on the Dart side.
+class QueuedDownload {
+  const QueuedDownload({required this.file, required this.qualityLabel});
 
   final File file;
   final String qualityLabel;
 }
 
-/// Resolves a playable stream and saves it as a file on the device.
+/// Resolves a playable stream and hands it to the background downloader.
 class DownloadService {
   DownloadService(this._videoRepository, this._neteaseRepository);
 
@@ -68,15 +55,15 @@ class DownloadService {
   final VideoRepository _videoRepository;
   final NeteaseRepository _neteaseRepository;
 
-  /// Downloads [track] into [directory], defaulting to the shared Music folder.
+  /// Resolves [track] and starts downloading it into [directory], defaulting to
+  /// the shared Music folder.
   ///
   /// Bilibili tracks always use the best available stream. NetEase tracks use
   /// [quality], or 极高 when the caller has no preference.
-  Future<DownloadedTrack> download(
+  Future<QueuedDownload> enqueue(
     MediaTrack track, {
     NeteaseQuality? quality,
     String? directory,
-    void Function(DownloadProgress progress)? onProgress,
   }) async {
     final _ResolvedDownload resolved;
     try {
@@ -97,49 +84,19 @@ class DownloadService {
     }
 
     final file = await _availableFile(folder, track, resolved.extension);
-    final dio = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 60),
-        followRedirects: true,
-      ),
+    final started = await DownloadBridge.enqueueDownload(
+      urls: [resolved.url, ...resolved.backupUrls],
+      headers: resolved.headers,
+      filePath: file.path,
+      title: track.displayTitle,
+      subtitle: [track.artist, resolved.qualityLabel]
+          .where((part) => part.trim().isNotEmpty)
+          .join(' · '),
     );
-
-    for (final url in [resolved.url, ...resolved.backupUrls]) {
-      try {
-        await dio.download(
-          url,
-          file.path,
-          options: Options(
-            headers: resolved.headers,
-            validateStatus: (status) =>
-                status != null && status >= 200 && status < 400,
-          ),
-          onReceiveProgress: (received, total) {
-            onProgress?.call(
-              DownloadProgress(received: received, total: total),
-            );
-          },
-        );
-        if (await file.exists() && await file.length() > 0) {
-          return DownloadedTrack(
-            file: file,
-            qualityLabel: resolved.qualityLabel,
-          );
-        }
-      } on DioException {
-        // Try the next mirror before surfacing the failure.
-      } on FileSystemException {
-        throw const DownloadException('无法写入下载文件夹，请检查存储权限或修改下载路径');
-      }
-      try {
-        if (await file.exists()) await file.delete();
-      } on FileSystemException {
-        // A leftover partial file is removed on the next download attempt.
-      }
+    if (!started) {
+      throw const DownloadException('无法启动后台下载，请稍后重试');
     }
-
-    throw const DownloadException('下载失败，请检查网络连接后重试');
+    return QueuedDownload(file: file, qualityLabel: resolved.qualityLabel);
   }
 
   Future<_ResolvedDownload> _resolve(

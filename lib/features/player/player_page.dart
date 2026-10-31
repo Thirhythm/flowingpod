@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flowingpod/core/models/media_track.dart';
@@ -11,7 +10,6 @@ import 'package:flowingpod/state/player_controller.dart';
 import 'package:flowingpod/state/providers.dart';
 import 'package:flowingpod/state/settings_controller.dart';
 import 'package:flowingpod/widgets/cover_image.dart';
-import 'package:flowingpod/widgets/download_progress_dialog.dart';
 import 'package:flowingpod/widgets/favorite_sheet.dart';
 import 'package:flowingpod/widgets/marquee_text.dart';
 import 'package:flowingpod/widgets/netease_quality_sheet.dart';
@@ -155,27 +153,17 @@ class _PlayerActionBarState extends ConsumerState<_PlayerActionBar> {
     }
 
     setState(() => _downloading = true);
-    final progress = ValueNotifier<DownloadProgress?>(null);
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) =>
-            DownloadProgressDialog(title: track.displayTitle, progress: progress),
-      ),
-    );
 
     String message;
     try {
       final result = await ref
           .read(downloadServiceProvider)
-          .download(
+          .enqueue(
             track,
             quality: quality,
             directory: ref.read(downloadDirectoryProvider),
-            onProgress: (value) => progress.value = value,
           );
-      message = '已保存到 ${result.file.path}';
+      message = '已开始下载（${result.qualityLabel}），进度可在通知栏查看';
     } on DownloadException catch (error) {
       message = error.message;
     } catch (_) {
@@ -183,7 +171,6 @@ class _PlayerActionBarState extends ConsumerState<_PlayerActionBar> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop();
     setState(() => _downloading = false);
     ScaffoldMessenger.of(
       context,

@@ -14,6 +14,7 @@ import io.flutter.plugin.common.MethodChannel
  */
 class MainActivity : AudioServiceActivity() {
     private lateinit var storageChannel: StorageChannel
+    private lateinit var downloadChannel: DownloadChannel
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -22,6 +23,10 @@ class MainActivity : AudioServiceActivity() {
         storageChannel = StorageChannel(this)
         MethodChannel(messenger, STORAGE_CHANNEL)
             .setMethodCallHandler(storageChannel::handle)
+
+        downloadChannel = DownloadChannel(this)
+        MethodChannel(messenger, DOWNLOAD_CHANNEL)
+            .setMethodCallHandler(downloadChannel::handle)
 
         MethodChannel(messenger, VOLUME_LEVELING_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -85,11 +90,13 @@ class MainActivity : AudioServiceActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         storageChannel.onRequestPermissionsResult(requestCode, grantResults)
+        downloadChannel.onRequestPermissionsResult(requestCode, grantResults)
     }
 
     private companion object {
         const val VOLUME_LEVELING_CHANNEL = "thirhythm.flowingpod/volume_leveling"
         const val EQUALIZER_CHANNEL = "thirhythm.flowingpod/equalizer"
         const val STORAGE_CHANNEL = "thirhythm.flowingpod/storage"
+        const val DOWNLOAD_CHANNEL = "thirhythm.flowingpod/download"
     }
 }
