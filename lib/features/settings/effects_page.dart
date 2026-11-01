@@ -40,10 +40,7 @@ class EffectsPage extends ConsumerWidget {
             enabled: settings.equalizerEnabled,
             onSelected: controller.selectPreset,
           ),
-          SectionHeader(
-            title: '频段（${state.bandLayout.bands.length} 段）',
-            action: null,
-          ),
+          SectionHeader(title: '频段）', action: null),
           _ResponseCurve(
             capabilities: state.bandLayout,
             curve: settings.curve,

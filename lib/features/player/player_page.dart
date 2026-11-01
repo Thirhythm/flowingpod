@@ -121,9 +121,9 @@ class PlayerPage extends ConsumerWidget {
   }
 }
 
-/// Secondary actions shown right above the progress bar: the equalizer, the
-/// favourite toggle, the download action and, for NetEase songs, the
-/// sound-quality picker.
+/// Secondary actions shown right above the progress bar: the equalizer with
+/// the download action next to it, the favourite toggle and, for NetEase
+/// songs, the sound-quality picker.
 class _PlayerActionBar extends ConsumerStatefulWidget {
   const _PlayerActionBar({required this.track});
 
@@ -201,17 +201,6 @@ class _PlayerActionBarState extends ConsumerState<_PlayerActionBar> {
                   icon: const Icon(Icons.high_quality_rounded, size: 20),
                   label: Text(quality.label),
                 ),
-              IconButton(
-                tooltip: '下载',
-                onPressed: _downloading ? null : _download,
-                icon: _downloading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.download_rounded),
-              ),
             ],
           ),
           Row(
@@ -223,6 +212,17 @@ class _PlayerActionBarState extends ConsumerState<_PlayerActionBar> {
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const EffectsPage()),
                 ),
+              ),
+              IconButton(
+                tooltip: '下载',
+                onPressed: _downloading ? null : _download,
+                icon: _downloading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_rounded),
               ),
               if (track.canFavorite)
                 IconButton(

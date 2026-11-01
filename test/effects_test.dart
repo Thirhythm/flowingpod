@@ -522,7 +522,7 @@ void main() {
     await tester.pumpWidget(_wrap(prefs, effects, const EffectsPage()));
     await tester.pumpAndSettle();
 
-    expect(find.text('频段（10 段）'), findsOneWidget);
+    expect(find.text('频段'), findsOneWidget);
     expect(find.text('16kHz'), findsOneWidget);
     // Ten band sliders plus the loudness slider.
     expect(find.byType(Slider), findsNWidgets(11));
